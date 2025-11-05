@@ -1,24 +1,37 @@
+// client/src/components/Game/Game.jsx
 import React, { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Phaser from 'phaser'
 import PlatformerScene from './PlatformerScene'
 import QuizPopup from '../Quiz/QuizPopup'
 import MultiplayerManager from './MultiplayerManager'
-import './Game.css'
+import { useSocket } from '../../context/SocketContext' // Import the socket context
 
 const Game = () => {
     const { roomId } = useParams()
     const gameRef = useRef(null)
     const [quizData, setQuizData] = useState(null)
     const [multiplayerManager, setMultiplayerManager] = useState(null)
+    const { socket } = useSocket() // Get the shared socket
 
     useEffect(() => {
-        // Initialize multiplayer manager
-        const manager = new MultiplayerManager(roomId)
-        setMultiplayerManager(manager)
+        // Get player data from localStorage
+        const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
+        const { playerName, isHost, roomId: storedRoomId } = storedData;
+        
+        console.log('🎮 Game component loading with stored data:', storedData);
+
+        // Initialize multiplayer manager with the shared socket
+        const manager = new MultiplayerManager(roomId || storedRoomId, socket);
+        setMultiplayerManager(manager);
+        window.multiplayerManager = manager;
+
+        // Initialize the manager if socket is available
+        if (socket) {
+            manager.setSocket(socket);
+        }
 
         const config = {
-            type: Phaser.AUTO,
             width: 800,
             height: 600,
             parent: 'game-container',
@@ -42,34 +55,33 @@ const Game = () => {
             }
         }
 
-        const game = new Phaser.Game(config)
+        const game = new Phaser.Game(config);
 
-        // Listen for quiz events from Phaser
         const handleShowQuiz = (event) => {
-            setQuizData(event.detail)
+            setQuizData(event.detail);
         }
 
-        window.addEventListener('showQuiz', handleShowQuiz)
+        window.addEventListener('showQuiz', handleShowQuiz);
 
         return () => {
-            window.removeEventListener('showQuiz', handleShowQuiz)
-            game.destroy(true)
-            manager.cleanup()
-        }
-    }, [roomId])
+            window.removeEventListener('showQuiz', handleShowQuiz);
+            game.destroy(true);
+            if (multiplayerManager) {
+                multiplayerManager.cleanup();
+            }
+        };
+    }, [roomId, socket]); // Add socket to dependencies
 
     const handleQuizAnswer = (isCorrect) => {
-        // Send answer back to Phaser
         if (window.quizManager) {
-            window.quizManager.handleQuizAnswer(isCorrect)
+            window.quizManager.handleQuizAnswer(isCorrect);
         }
         
-        // Send result to multiplayer manager
         if (multiplayerManager) {
-            multiplayerManager.sendQuizResult(isCorrect)
+            multiplayerManager.sendQuizResult(isCorrect);
         }
         
-        setQuizData(null)
+        setQuizData(null);
     }
 
     const gameWrapperStyle = {

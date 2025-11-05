@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { MapManager } from "./MapManager";
 import { Player } from "./Player";
+import { MultiplayerPlayer } from "./MultiplayerPlayer";
 import { QuizManager } from "./QuizManager";
 
 export default class PlatformerScene extends Phaser.Scene {
@@ -8,7 +9,8 @@ export default class PlatformerScene extends Phaser.Scene {
         super({ key: "PlatformerScene" });
 
         this.mapManager = null;
-        this.player = null;
+        this.localPlayer = null;
+        this.otherPlayers = new Map(); // playerId -> MultiplayerPlayer
         this.hudContainer = null;
         this.livesText = null;
         this.coinsText = null;
@@ -17,6 +19,11 @@ export default class PlatformerScene extends Phaser.Scene {
         this.score = 0;
         this.lives = 3;
         this.coinsCollected = 0;
+
+        // Multiplayer
+        this.roomCoins = new Map(); // coinId -> coin sprite
+        this.isMultiplayer = false;
+
 
         // Parallax backgrounds
         this.backgrounds = [];
@@ -39,7 +46,7 @@ export default class PlatformerScene extends Phaser.Scene {
         this.mapManager = new MapManager(this);
         this.mapManager.preload();
 
-        // Create placeholder textures
+        // Create placeholder textures ONLY if they don't exist
         this.createTextures();
 
         // Load parallax background layers
@@ -52,8 +59,8 @@ export default class PlatformerScene extends Phaser.Scene {
 
     loadParallaxBackgrounds() {
         // Load background layers - you can replace these with your own assets
-        this.load.image("parallax_background_1", "src/assets/background_1.png");
-        this.load.image("parallax_background_2", "src/assets/background_2.png");
+        this.load.image("parallax_background_1", "/assets/background_2.png");
+        this.load.image("parallax_background_2", "/assets/background_3.png");
 
         // Fallback: create colored placeholder backgrounds if images don't exist
         if (!this.textures.exists("parallax_background_1")) {
@@ -94,166 +101,201 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     loadPlayerAnimations() {
+        // Use absolute paths from the public folder or correct relative paths
+        const basePath = '/assets/sprites/player/';
+
         // Load idle animation frames
-        this.load.image(
-            "player_idle_1",
-            "src/assets/sprites/player/idle/player_idle_1.png"
-        );
-        this.load.image(
-            "player_idle_2",
-            "src/assets/sprites/player/idle/player_idle_2.png"
-        );
-        this.load.image(
-            "player_idle_3",
-            "src/assets/sprites/player/idle/player_idle_3.png"
-        );
-        this.load.image(
-            "player_idle_4",
-            "src/assets/sprites/player/idle/player_idle_4.png"
-        );
+        this.load.image('player_idle_1', `${basePath}idle/player_idle_1.png`);
+        this.load.image('player_idle_2', `${basePath}idle/player_idle_2.png`);
+        this.load.image('player_idle_3', `${basePath}idle/player_idle_3.png`);
+        this.load.image('player_idle_4', `${basePath}idle/player_idle_4.png`);
 
         // Load run animation frames
-        this.load.image(
-            "player_run_1",
-            "src/assets/sprites/player/run/player_run_1.png"
-        );
-        this.load.image(
-            "player_run_2",
-            "src/assets/sprites/player/run/player_run_2.png"
-        );
-        this.load.image(
-            "player_run_3",
-            "src/assets/sprites/player/run/player_run_3.png"
-        );
-        this.load.image(
-            "player_run_4",
-            "src/assets/sprites/player/run/player_run_4.png"
-        );
-        this.load.image(
-            "player_run_5",
-            "src/assets/sprites/player/run/player_run_5.png"
-        );
-        this.load.image(
-            "player_run_6",
-            "src/assets/sprites/player/run/player_run_6.png"
-        );
-        this.load.image(
-            "player_run_7",
-            "src/assets/sprites/player/run/player_run_7.png"
-        );
-        this.load.image(
-            "player_run_8",
-            "src/assets/sprites/player/run/player_run_8.png"
-        );
-        this.load.image(
-            "player_run_9",
-            "src/assets/sprites/player/run/player_run_9.png"
-        );
-        this.load.image(
-            "player_run_10",
-            "src/assets/sprites/player/run/player_run_10.png"
-        );
-        this.load.image(
-            "player_run_11",
-            "src/assets/sprites/player/run/player_run_11.png"
-        );
-        this.load.image(
-            "player_run_12",
-            "src/assets/sprites/player/run/player_run_12.png"
-        );
-        this.load.image(
-            "player_run_13",
-            "src/assets/sprites/player/run/player_run_13.png"
-        );
-        this.load.image(
-            "player_run_14",
-            "src/assets/sprites/player/run/player_run_14.png"
-        );
-        this.load.image(
-            "player_run_15",
-            "src/assets/sprites/player/run/player_run_15.png"
-        );
-        this.load.image(
-            "player_run_16",
-            "src/assets/sprites/player/run/player_run_16.png"
-        );
+        this.load.image('player_run_1', `${basePath}run/player_run_1.png`);
+        this.load.image('player_run_2', `${basePath}run/player_run_2.png`);
+        this.load.image('player_run_3', `${basePath}run/player_run_3.png`);
+        this.load.image('player_run_4', `${basePath}run/player_run_4.png`);
+        this.load.image('player_run_5', `${basePath}run/player_run_5.png`);
+        this.load.image('player_run_6', `${basePath}run/player_run_6.png`);
+        this.load.image('player_run_7', `${basePath}run/player_run_7.png`);
+        this.load.image('player_run_8', `${basePath}run/player_run_8.png`);
+        this.load.image('player_run_9', `${basePath}run/player_run_9.png`);
+        this.load.image('player_run_10', `${basePath}run/player_run_10.png`);
+        this.load.image('player_run_11', `${basePath}run/player_run_11.png`);
+        this.load.image('player_run_12', `${basePath}run/player_run_12.png`);
+        this.load.image('player_run_13', `${basePath}run/player_run_13.png`);
+        this.load.image('player_run_14', `${basePath}run/player_run_14.png`);
+        this.load.image('player_run_15', `${basePath}run/player_run_15.png`);
+        this.load.image('player_run_16', `${basePath}run/player_run_16.png`);
 
         // Load jump animation frames
-        this.load.image(
-            "player_jump_1",
-            "src/assets/sprites/player/jump/player_jump_1.png"
-        );
-        this.load.image(
-            "player_jump_2",
-            "src/assets/sprites/player/jump/player_jump_2.png"
-        );
-        this.load.image(
-            "player_jump_3",
-            "src/assets/sprites/player/jump/player_jump_3.png"
-        );
-        this.load.image(
-            "player_jump_4",
-            "src/assets/sprites/player/jump/player_jump_4.png"
-        );
-        this.load.image(
-            "player_jump_5",
-            "src/assets/sprites/player/jump/player_jump_5.png"
-        );
-        this.load.image(
-            "player_jump_6",
-            "src/assets/sprites/player/jump/player_jump_6.png"
-        );
-        this.load.image(
-            "player_jump_7",
-            "src/assets/sprites/player/jump/player_jump_7.png"
-        );
-        this.load.image(
-            "player_jump_8",
-            "src/assets/sprites/player/jump/player_jump_8.png"
-        );
+        this.load.image('player_jump_1', `${basePath}jump/player_jump_1.png`);
+        this.load.image('player_jump_2', `${basePath}jump/player_jump_2.png`);
+        this.load.image('player_jump_3', `${basePath}jump/player_jump_3.png`);
+        this.load.image('player_jump_4', `${basePath}jump/player_jump_4.png`);
+        this.load.image('player_jump_5', `${basePath}jump/player_jump_5.png`);
+        this.load.image('player_jump_6', `${basePath}jump/player_jump_6.png`);
+        this.load.image('player_jump_7', `${basePath}jump/player_jump_7.png`);
+        this.load.image('player_jump_8', `${basePath}jump/player_jump_8.png`);
     }
 
     create() {
-        // Reset game state when scene starts/restarts
+        // Reset game state
         this.resetGameState();
 
-        // Create parallax backgrounds first (so they're behind everything)
+        // Create backgrounds
         this.createParallaxBackgrounds();
 
-        // Create map and get map dimensions
+        // Create map
         const mapDimensions = this.mapManager.create();
-
-        // Create player
-        this.player = new Player(this, 100, 200);
 
         // Create player animations
         this.createPlayerAnimations();
 
-        // Set up camera
-        this.cameras.main.setBounds(
-            0,
-            0,
-            mapDimensions.width,
-            mapDimensions.height
-        );
-        this.cameras.main.startFollow(this.player.getSprite());
+        // Initialize multiplayer - but don't create player yet
+        this.initializeMultiplayer();
 
-        // Set camera zoom
-        this.cameraZoom = this.normalZoom;
-        this.cameras.main.setZoom(this.cameraZoom);
-
-        // Smooth camera follow
+        // Set up camera (will follow local player when created)
+        this.cameras.main.setBounds(0, 0, mapDimensions.width, mapDimensions.height);
+        this.cameras.main.setZoom(this.normalZoom);
         this.cameras.main.setLerp(0.1, 0.1);
 
-        // Set up collisions
-        this.setupCollisions();
-
-        // Create HUD
-        this.createHUD();
+        // Don't create HUD here - wait for player to be created
+        // this.createHUD(); // Remove this line
 
         // Create quiz UI
-
         window.quizManager = this.quizManager;
+
+        // Expose scene to window for multiplayer manager
+        window.gameScene = this;
+
+        console.log("PlatformerScene created, waiting for multiplayer connection...");
+    }
+
+    initializeMultiplayer() {
+        // Wait for multiplayer manager to provide player data
+        this.isMultiplayer = true;
+
+        // The local player will be created when we receive game state from server
+    }
+
+    setupCollisions() {
+        if (!this.localPlayer || !this.localPlayer.getSprite) {
+            console.warn('Local player not ready for collisions');
+            return;
+        }
+
+        const sprite = this.localPlayer.getSprite();
+        if (!sprite) {
+            console.warn('Player sprite not available');
+            return;
+        }
+
+        // Clear any existing colliders
+        this.physics.world.colliders.destroy();
+
+        this.physics.add.collider(sprite, this.mapManager.getCollisionObjects());
+        this.physics.add.overlap(sprite, this.mapManager.getCoins(), this.collectCoin, null, this);
+        this.physics.add.overlap(sprite, this.mapManager.getSpikes(), this.hitSpike, null, this);
+
+        console.log('Collisions set up for local player');
+    }
+
+    // Multiplayer methods
+    updateOtherPlayer(data) {
+        const { playerId, position, velocity, animation } = data;
+
+        if (playerId === this.localPlayer?.playerData?.id) {
+            return; // Don't update local player from network
+        }
+
+        let otherPlayer = this.otherPlayers.get(playerId);
+
+        if (!otherPlayer) {
+            // Create new remote player
+            const playerData = {
+                id: playerId,
+                name: `Player${playerId.substring(0, 4)}`,
+                position: position,
+                velocity: velocity,
+                animation: animation,
+                color: 0x888888 // Default color
+            };
+            otherPlayer = new MultiplayerPlayer(this, playerData, false);
+            this.otherPlayers.set(playerId, otherPlayer);
+        } else {
+            // Update existing remote player
+            otherPlayer.update({
+                ...otherPlayer.playerData,
+                position,
+                velocity,
+                animation
+            });
+        }
+    }
+
+    updatePlayerCoins(data) {
+        console.log(`Player ${data.playerName} now has ${data.coins} coins`);
+        // You could update a scoreboard UI here
+    }
+
+    // In PlatformerScene.js - update the setLocalPlayer method
+    setLocalPlayer(playerData) {
+        console.log('🎯 Setting local player:', playerData);
+
+        if (!playerData || !playerData.position) {
+            console.error('❌ Invalid player data received:', playerData);
+            playerData = {
+                id: 'local-player',
+                name: 'Player',
+                position: { x: 100, y: 200 },
+                velocity: { x: 0, y: 0 },
+                animation: 'idle',
+                color: 0xff6b6b
+            };
+        }
+
+        // Create local player as MultiplayerPlayer first
+        this.localPlayer = new MultiplayerPlayer(this, playerData, true);
+
+        if (!this.localPlayer.getSprite()) {
+            console.error('❌ Failed to create player sprite');
+            return;
+        }
+
+        // Set up collisions for local player
+        this.setupCollisions();
+
+        // Make camera follow local player
+        this.cameras.main.startFollow(this.localPlayer.getSprite());
+
+        // Create HUD now that player exists
+        this.createHUD();
+
+        // Convert to controlled player for input handling
+        this.convertToControlledPlayer();
+
+        console.log('✅ Local player setup complete');
+    }
+
+    convertToControlledPlayer() {
+        if (!this.localPlayer) return;
+
+        // Replace the multiplayer player with a controlled player
+        const sprite = this.localPlayer.getSprite();
+        const playerData = this.localPlayer.playerData;
+
+        this.localPlayer.destroy();
+
+        // Create controlled player
+        this.localPlayer = new Player(this, playerData.position.x, playerData.position.y);
+        this.localPlayer.playerData = playerData;
+
+        // Set up collisions again
+        this.setupCollisions();
+
+        // Make camera follow new player
+        this.cameras.main.startFollow(this.localPlayer.getSprite());
     }
 
     createParallaxBackgrounds() {
@@ -391,120 +433,147 @@ export default class PlatformerScene extends Phaser.Scene {
 
     createTextures() {
         // Only create textures if they don't exist
-        if (!this.textures.exists("player")) {
+        const textures = this.textures;
+
+        if (!textures.exists("player")) {
             const playerGraphics = this.add.graphics();
             playerGraphics.fillStyle(0xff0000, 1);
             playerGraphics.fillRect(0, 0, 16, 16);
-            playerGraphics.fillStyle(0x000000, 1);
-            playerGraphics.fillRect(4, 4, 2, 2);
-            playerGraphics.fillRect(10, 4, 2, 2);
-            playerGraphics.fillRect(6, 8, 4, 2);
             playerGraphics.generateTexture("player", 16, 16);
             playerGraphics.destroy();
-            this.textures.get("player").setFilter(Phaser.Textures.FilterMode.NEAREST);
         }
 
-        if (!this.textures.exists("coin")) {
+        if (!textures.exists("coin")) {
             const coinGraphics = this.add.graphics();
             coinGraphics.fillStyle(0xffff00, 1);
-            coinGraphics.fillRect(4, 4, 8, 8);
-            coinGraphics.fillStyle(0xffaa00, 1);
-            coinGraphics.fillRect(6, 6, 4, 4);
+            coinGraphics.fillCircle(8, 8, 6);
             coinGraphics.generateTexture("coin", 16, 16);
             coinGraphics.destroy();
-            this.textures.get("coin").setFilter(Phaser.Textures.FilterMode.NEAREST);
         }
 
-        if (!this.textures.exists("spike")) {
+        if (!textures.exists("spike")) {
             const spikeGraphics = this.add.graphics();
             spikeGraphics.fillStyle(0xff0000, 1);
-            for (let y = 0; y < 4; y++) {
-                const width = 4 - y;
-                spikeGraphics.fillRect(width * 4, y * 4, 8 - width * 2, 4);
-            }
+            spikeGraphics.fillTriangle(0, 16, 8, 0, 16, 16);
             spikeGraphics.generateTexture("spike", 16, 16);
             spikeGraphics.destroy();
-            this.textures.get("spike").setFilter(Phaser.Textures.FilterMode.NEAREST);
         }
     }
 
     setupCollisions() {
-        // Set up collisions with map objects
-        this.physics.add.collider(
-            this.player.getSprite(),
-            this.mapManager.getCollisionObjects()
-        );
-        this.physics.add.overlap(
-            this.player.getSprite(),
-            this.mapManager.getCoins(),
-            this.collectCoin,
-            null,
-            this
-        );
-        this.physics.add.overlap(
-            this.player.getSprite(),
-            this.mapManager.getSpikes(),
-            this.hitSpike,
-            null,
-            this
-        );
+        if (!this.localPlayer) {
+            console.warn('Local player not ready for collisions');
+            return;
+        }
+
+        // Wait a frame to ensure sprite is created
+        this.time.delayedCall(100, () => {
+            if (!this.localPlayer || !this.localPlayer.getSprite) {
+                console.warn('Local player sprite method not available');
+                return;
+            }
+
+            const sprite = this.localPlayer.getSprite();
+            if (!sprite || !sprite.body) {
+                console.warn('Player sprite or physics body not available');
+                return;
+            }
+
+            // Clear any existing colliders
+            if (this.physics.world.colliders) {
+                this.physics.world.colliders.destroy();
+            }
+
+            this.physics.add.collider(sprite, this.mapManager.getCollisionObjects());
+            this.physics.add.overlap(sprite, this.mapManager.getCoins(), this.collectCoin, null, this);
+            this.physics.add.overlap(sprite, this.mapManager.getSpikes(), this.hitSpike, null, this);
+
+            console.log('Collisions set up for local player');
+        });
     }
 
     createHUD() {
-        console.log("Creating floating HUD above player...");
+        console.log("Creating floating HUD...");
 
-        // Create a container that will follow the player
-        this.hudContainer = this.add.container(
-            this.player.getSprite().x,
-            this.player.getSprite().y - 50
-        );
+        // Don't create HUD if player doesn't exist yet
+        if (!this.localPlayer || !this.localPlayer.getSprite) {
+            console.warn("Player not ready for HUD creation, will create later");
+            // Try again in a moment
+            this.time.delayedCall(500, () => this.createHUD());
+            return;
+        }
 
-        // HUD style - make it very visible
-        const style = {
-            fontSize: "12px",
-            fill: "#FFFFFF",
-            fontFamily: "Arial, sans-serif",
-            stroke: "#000000",
-            strokeThickness: 3,
-            backgroundColor: "#000000AA",
-            padding: { left: 8, right: 8, top: 4, bottom: 4 },
-        };
+        try {
+            const playerSprite = this.localPlayer.getSprite();
+            if (!playerSprite) {
+                console.warn("Player sprite not available for HUD");
+                return;
+            }
 
-        // Create HUD text elements
-        this.livesText = this.add.text(0, 0, "LIVES: 3", style);
-        this.coinsText = this.add.text(0, 20, "COINS: 0", style);
+            // Create a container that will follow the player
+            this.hudContainer = this.add.container(
+                playerSprite.x,
+                playerSprite.y - 50
+            );
 
-        // Center the text in the container
-        this.livesText.setOrigin(0.5);
-        this.coinsText.setOrigin(0.5);
+            // HUD style
+            const style = {
+                fontSize: "12px",
+                fill: "#FFFFFF",
+                fontFamily: "Arial, sans-serif",
+                stroke: "#000000",
+                strokeThickness: 3,
+                backgroundColor: "#000000AA",
+                padding: { left: 8, right: 8, top: 4, bottom: 4 },
+            };
 
-        // Add text to container
-        this.hudContainer.add([this.livesText, this.coinsText]);
+            // Create HUD text elements
+            this.livesText = this.add.text(0, 0, "LIVES: 3", style);
+            this.coinsText = this.add.text(0, 20, "COINS: 0", style);
 
-        // Set high depth to ensure HUD is on top
-        this.hudContainer.setDepth(1000);
+            // Center the text in the container
+            this.livesText.setOrigin(0.5);
+            this.coinsText.setOrigin(0.5);
 
-        console.log("Floating HUD created above player");
+            // Add text to container
+            this.hudContainer.add([this.livesText, this.coinsText]);
+
+            // Set high depth to ensure HUD is on top
+            this.hudContainer.setDepth(1000);
+
+            console.log("Floating HUD created successfully");
+        } catch (error) {
+            console.error("Error creating HUD:", error);
+        }
     }
 
     update(time, delta) {
-        // Don't update game logic if quiz is active
+        // Don't update if quiz is active
         if (this.quizManager.isQuizActive()) {
             return;
         }
 
-        // Update player if it exists and is active
-        if (this.player && this.player.getSprite() && this.player.getSprite().active) {
-            this.player.update(time, delta);
+        // Update local player
+        if (this.localPlayer && this.localPlayer.update) {
+            this.localPlayer.update(time, delta);
 
-            // Update HUD position to follow player
+            // Send player movement to server
+            if (this.isMultiplayer && window.multiplayerManager) {
+                const sprite = this.localPlayer.getSprite();
+                window.multiplayerManager.sendPlayerMovement(
+                    { x: sprite.x, y: sprite.y },
+                    { x: sprite.body.velocity.x, y: sprite.body.velocity.y },
+                    this.localPlayer.sprite.anims.currentAnim?.key || 'idle'
+                );
+            }
+
+            // Update HUD position
             if (this.hudContainer) {
-                this.hudContainer.x = this.player.getSprite().x;
-                this.hudContainer.y = this.player.getSprite().y - 50;
+                this.hudContainer.x = this.localPlayer.getSprite().x;
+                this.hudContainer.y = this.localPlayer.getSprite().y - 50;
             }
         }
-
-        // Update parallax backgrounds
+        // Update other players (handled by network updates)
         this.updateParallaxBackgrounds();
 
         // Update HUD text
@@ -518,7 +587,7 @@ export default class PlatformerScene extends Phaser.Scene {
             this.restartGame();
         }
     }
-    
+
     updateParallaxBackgrounds() {
         const camera = this.cameras.main;
         const cameraX = camera.scrollX;
@@ -535,6 +604,24 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     async collectCoin(player, coin) {
+        if (!this.isMultiplayer) {
+            // Single player logic
+            await this.handleSinglePlayerCoin(coin);
+            return;
+        }
+
+        // Multiplayer coin collection
+        const coinId = this.findCoinId(coin);
+        if (coinId && window.multiplayerManager) {
+            // Notify server about coin collection
+            window.multiplayerManager.sendCoinCollection(coinId);
+
+            // Show quiz for this player only
+            await this.handleMultiplayerCoin(coin);
+        }
+    }
+
+    async handleMultiplayerCoin(coin) {
         // Store the coin reference
         this.currentCoin = coin;
 
@@ -553,6 +640,25 @@ export default class PlatformerScene extends Phaser.Scene {
         // Zoom camera back to normal
         await this.zoomCameraBackToNormal();
     }
+
+    findCoinId(coin) {
+        // Find the coin ID based on position (you might want to store this differently)
+        for (let [coinId, coinSprite] of this.roomCoins) {
+            if (coinSprite === coin) {
+                return coinId;
+            }
+        }
+        return null;
+    }
+
+    removePlayer(playerId) {
+        const player = this.otherPlayers.get(playerId);
+        if (player) {
+            player.destroy();
+            this.otherPlayers.delete(playerId);
+        }
+    }
+
 
     async zoomCameraForQuiz() {
         return new Promise((resolve) => {

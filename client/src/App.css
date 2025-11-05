@@ -635,3 +635,306 @@ body {
         flex-direction: column;
     }
 }
+
+.name-input-section {
+    text-align: center;
+}
+
+.name-input-full {
+    width: 100%;
+    padding: 15px;
+    border: 2px solid #e1e5e9;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    margin-bottom: 20px;
+    transition: border-color 0.3s ease;
+}
+
+.name-input-full:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.name-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.cancel-button {
+    padding: 12px 25px;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.cancel-button:hover {
+    background: #d32f2f;
+}
+
+.confirm-button {
+    padding: 12px 25px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.confirm-button:hover {
+    background: #45a049;
+}
+
+.player-info {
+    color: #666;
+    margin: 5px 0 0 0;
+    font-size: 1rem;
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.leave-button {
+    background: #f44336;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s ease;
+}
+
+.leave-button:hover {
+    background: #d32f2f;
+}
+
+.current-player {
+    border-color: #4CAF50;
+    background: #f8fff8;
+}
+
+.player-waiting {
+    text-align: center;
+    background: #e3f2fd;
+    padding: 25px;
+    border-radius: 15px;
+    border: 2px solid #2196F3;
+    margin-top: 20px;
+}
+
+.player-ready {
+    margin: 15px 0;
+}
+
+.ready-status {
+    font-weight: bold;
+    color: #1976D2;
+}
+
+.joining-message {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+
+.error-message {
+    text-align: center;
+    background: #ffebee;
+    padding: 30px;
+    border-radius: 15px;
+    border: 2px solid #f44336;
+}
+
+.error-message h2 {
+    color: #d32f2f;
+    margin-bottom: 15px;
+}
+
+.back-button {
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 15px;
+}
+
+.back-button:hover {
+    background: #1976D2;
+}
+
+.room-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.room-content {
+    background: white;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    max-width: 800px;
+    width: 100%;
+}
+
+.room-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 20px;
+}
+
+.room-header h1 {
+    color: #333;
+    margin: 0 0 10px 0;
+}
+
+.player-info {
+    color: #666;
+    margin: 0;
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.copy-button, .leave-button, .start-button, .ready-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.copy-button {
+    background: #4CAF50;
+    color: white;
+}
+
+.leave-button {
+    background: #f44336;
+    color: white;
+}
+
+.start-button {
+    background: #2196F3;
+    color: white;
+    font-size: 18px;
+    padding: 15px 30px;
+}
+
+.start-button.disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.ready-button {
+    background: #FF9800;
+    color: white;
+}
+
+.players-section {
+    margin-bottom: 30px;
+}
+
+.players-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.player-card {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border-left: 4px solid #007bff;
+}
+
+.player-card.current-player {
+    background: #e3f2fd;
+    border-left-color: #2196F3;
+}
+
+.player-avatar {
+    font-size: 24px;
+}
+
+.player-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.player-name {
+    font-weight: bold;
+    color: #333;
+}
+
+.player-details {
+    font-size: 12px;
+    color: #666;
+}
+
+.player-status {
+    font-weight: bold;
+    color: #4CAF50;
+}
+
+.host-controls, .player-waiting {
+    text-align: center;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    margin-top: 20px;
+}
+
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 2s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error-message {
+    text-align: center;
+    color: #d32f2f;
+}
+
+.back-button {
+    background: #2196F3;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+}

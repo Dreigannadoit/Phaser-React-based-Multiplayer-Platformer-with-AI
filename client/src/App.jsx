@@ -1,21 +1,21 @@
-import React from 'react'
+// App.jsx
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Home from './components/Home/Home'
-import Game from './components/Game/Game'
 import Room from './components/Room/Room'
-import './App.css'
+import Game from './components/Game/Game'
+import { SocketProvider } from './context/SocketContext'
 
 function App() {
   return (
-    <Router>
-      <div className="App">
+    <SocketProvider>
+      <Router>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/room/:roomId" element={<Room />} />
           <Route path="/game/:roomId" element={<Game />} />
         </Routes>
-      </div>
-    </Router>
+      </Router>
+    </SocketProvider>
   )
 }
 

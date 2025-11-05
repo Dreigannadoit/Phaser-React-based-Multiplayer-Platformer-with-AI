@@ -2,8 +2,9 @@ export class QuizManager {
     constructor(scene) {
         this.scene = scene;
         this.quizActive = false;
+        this.quizContainer = null;
+        this.optionButtons = [];
         this.currentQuestion = null;
-        this.quizResolve = null;
         
         this.questions = [
             {
@@ -20,37 +21,22 @@ export class QuizManager {
                 question: "Which language runs in a web browser?",
                 options: ["Java", "C", "Python", "JavaScript"],
                 correct: 3
-            },
-            {
-                question: "What does HTML stand for?",
-                options: [
-                    "Hyper Text Markup Language",
-                    "High Tech Modern Language",
-                    "Hyper Transfer Markup Language",
-                    "Home Tool Markup Language"
-                ],
-                correct: 0
-            },
-            {
-                question: "Which planet is known as the Red Planet?",
-                options: ["Venus", "Mars", "Jupiter", "Saturn"],
-                correct: 1
             }
         ];
     }
 
     preload() {
         // No need to load graphics assets anymore
-        this.scene.load.audio('quiz_correct', 'src/assets/sounds/correct.wav');
-        this.scene.load.audio('quiz_incorrect', 'src/assets/sounds/incorrect.wav');
-        this.scene.load.audio('quiz_show', 'src/assets/sounds/quiz_show.wav');
+        // this.scene.load.audio('quiz_correct', 'src/assets/sounds/correct.wav');
+        // this.scene.load.audio('quiz_incorrect', 'src/assets/sounds/incorrect.wav');
+        // this.scene.load.audio('quiz_show', 'src/assets/sounds/quiz_show.wav');
     }
 
     create() {
         // No Phaser UI creation needed
     }
 
-    showQuiz() {
+   showQuiz() {
         this.quizActive = true;
         
         // Pause game physics
@@ -68,17 +54,12 @@ export class QuizManager {
             }
         });
         window.dispatchEvent(quizEvent);
-        
-        // Play quiz show sound if available
-        if (this.scene.sound.get('quiz_show')) {
-            this.scene.sound.play('quiz_show');
-        }
 
         return new Promise((resolve) => {
             this.quizResolve = resolve;
         });
     }
-
+    
     handleQuizAnswer(isCorrect) {
         if (this.quizResolve) {
             this.quizResolve(isCorrect);

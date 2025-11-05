@@ -8,11 +8,12 @@ export class MapManager {
     }
 
     preload() {
-        // Load the tilemap
-        this.scene.load.tilemapTiledJSON('map', 'src/assets/maps/map_2.json');
+        // Use correct paths for your new structure
+        const mapsPath = '/assets/maps/';
+        const spritesPath = '/assets/sprites/';
         
-        // Load tileset image
-        this.scene.load.image('tiles', 'src/assets/sprites/world_tileset.png');
+        this.scene.load.tilemapTiledJSON('map', `${mapsPath}map_2.json`);
+        this.scene.load.image('tiles', `${spritesPath}world_tileset.png`);
     }
 
     create() {
