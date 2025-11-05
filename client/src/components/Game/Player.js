@@ -15,12 +15,12 @@ export class Player {
         
         // Coyote time variables
         this.coyoteTime = 0;
-        this.coyoteTimeThreshold = 100; // 100ms coyote time
+        this.coyoteTimeThreshold = 100;
         this.wasGrounded = false;
         
         // Jump buffer variables
         this.jumpBuffer = 0;
-        this.jumpBufferThreshold = 150; // 150ms jump buffer
+        this.jumpBufferThreshold = 150;
         
         this.create(x, y);
     }
@@ -28,7 +28,7 @@ export class Player {
     create(x, y) {
         // Create player sprite using the first idle frame
         this.sprite = this.scene.physics.add.sprite(x, y, 'player_idle_1');
-        this.sprite.setBounce(0.1); // Reduced from 0.2 to 0.1 for less bounciness
+        this.sprite.setBounce(0.1);
         this.sprite.setCollideWorldBounds(true);
         this.sprite.setSize(16, 16);
         
@@ -52,11 +52,15 @@ export class Player {
             this.sprite.destroy();
             this.sprite = null;
         }
+        // Clean up input references
+        this.cursors = null;
+        this.wasdKeys = null;
+        this.spaceKey = null;
     }
 
     update(time, delta) {
-        // Only update if sprite exists
-        if (!this.sprite) return;
+        // Only update if sprite exists and is active
+        if (!this.sprite || !this.sprite.active) return;
         
         // Update grounded state
         this.wasGrounded = this.isGrounded;
@@ -112,19 +116,16 @@ export class Player {
 
     handleJump() {
         const canJump = this.isGrounded || this.coyoteTime > 0;
-        let jumpCount = 2
         
         if (this.jumpBuffer > 0 && canJump) {
             this.sprite.setVelocityY(-this.jumpForce);
             this.jumpBuffer = 0; // Consume the jump buffer
             this.coyoteTime = 0; // Consume the coyote time
-            jumpCount -= 1
-
         }
     }
 
     updateAnimations() {
-        if (!this.sprite) return;
+        if (!this.sprite || !this.sprite.active) return;
         
         // If player is in the air
         if (!this.isGrounded) {
@@ -151,20 +152,20 @@ export class Player {
     }
 
     setTint(color) {
-        if (this.sprite) {
+        if (this.sprite && this.sprite.active) {
             this.sprite.setTint(color);
         }
     }
 
     clearTint() {
-        if (this.sprite) {
+        if (this.sprite && this.sprite.active) {
             this.sprite.clearTint();
         }
     }
 
     takeDamage() {
-        // Only take damage if sprite exists
-        if (!this.sprite) return;
+        // Only take damage if sprite exists and is active
+        if (!this.sprite || !this.sprite.active) return;
         
         // Knockback effect
         this.sprite.setVelocityY(-200);
