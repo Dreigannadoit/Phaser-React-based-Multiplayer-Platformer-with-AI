@@ -188,8 +188,12 @@ export default class PlatformerScene extends Phaser.Scene {
         this.createPlayerAnimations();
         this.initializeMultiplayer();
 
+        // Store spawn area for respawning
+        this.spawnArea = mapDimensions.spawnArea;
+
         // DEBUG: Check if coins were created
         console.log(`🔍 Map created with ${this.mapManager.getCoins().getLength()} coins`);
+        console.log(`📍 Spawn area:`, this.spawnArea);
 
         // Set up camera
         this.cameras.main.setBounds(0, 0, mapDimensions.width, mapDimensions.height);
@@ -470,16 +474,17 @@ export default class PlatformerScene extends Phaser.Scene {
 
         // Reset lives and respawn state
         this.lives = 3;
+        this.coinsCollected = 0;
         this.isRespawning = false;
 
-        // Get respawn position (you might want to set specific spawn points)
-        const spawnX = 100;
-        const spawnY = 200;
+        // GET SPAWN POSITION FROM MAP - UPDATED THIS PART
+        const spawnPosition = this.mapManager.getSpawnPosition();
+        console.log(`📍 Respawning at: (${spawnPosition.x}, ${spawnPosition.y})`);
 
         // Reset player position and state
         const localPlayer = this.playerManager.getLocalPlayer();
         if (localPlayer && localPlayer.getSprite()) {
-            localPlayer.getSprite().setPosition(spawnX, spawnY);
+            localPlayer.getSprite().setPosition(spawnPosition.x, spawnPosition.y);
             localPlayer.getSprite().setVisible(true);
             localPlayer.getSprite().body.enable = true; // Re-enable physics
             localPlayer.getSprite().setVelocity(0, 0); // Reset velocity
@@ -494,9 +499,6 @@ export default class PlatformerScene extends Phaser.Scene {
 
         // Make camera follow player again
         this.cameras.main.startFollow(localPlayer.getSprite());
-
-        // Reset coins (optional - if you want to respawn collected coins)
-        // this.respawnCoins();
 
         console.log('✅ Player respawned!');
 
@@ -666,8 +668,20 @@ export default class PlatformerScene extends Phaser.Scene {
 
     // Delegate methods to managers
     setLocalPlayer(playerData) {
-        this.playerManager.setLocalPlayer(playerData);
+        // Override position with spawn area position if not specified
+        const spawnPosition = this.mapManager.getSpawnPosition();
+
+        const playerDataWithSpawn = {
+            ...playerData,
+            position: {
+                x: spawnPosition.x,
+                y: spawnPosition.y
+            }
+        };
+
+        this.playerManager.setLocalPlayer(playerDataWithSpawn);
     }
+
 
     updateOtherPlayer(data) {
         this.playerManager.updateOtherPlayer(data);

@@ -5,11 +5,8 @@ export class MapManager {
         this.collisionObjects = null;
         this.coins = null;
         this.spikes = null;
-
-        // REMOVE scaling factor
-        // this.SCALE_FACTOR = scene.SCALE_FACTOR || 2;
+        this.spawnArea = null; // ADD THIS
     }
-
 
     preload() {
         // Use correct paths for your new structure
@@ -29,7 +26,6 @@ export class MapManager {
 
         // NO SCALING - remove setScale
         this.groundLayer = map.createLayer('Ground', tileset, 0, 0);
-        // this.groundLayer.setScale(this.SCALE_FACTOR); // REMOVE THIS LINE
 
         // Set up physics - ORIGINAL map size
         const width = 60 * 16; // Original width
@@ -41,9 +37,13 @@ export class MapManager {
         this.createCoins(map);
         this.createSpikes(map);
 
+        // EXTRACT SPAWN AREA - ADD THIS
+        this.extractSpawnArea(map);
+
         return {
             width: width,
-            height: height
+            height: height,
+            spawnArea: this.spawnArea // Return spawn area info
         };
     }
 
@@ -69,6 +69,62 @@ export class MapManager {
                     }
                 }
             });
+        }
+    }
+
+     extractSpawnArea(map) {
+        const entityLayer = map.getObjectLayer('entity');
+        
+        if (entityLayer && entityLayer.objects) {
+            entityLayer.objects.forEach(obj => {
+                if (obj.type === 'spawnArea' || obj.class === 'spawnArea') {
+                    console.log('🎯 Found spawn area:', obj);
+                    
+                    this.spawnArea = {
+                        x: obj.x,
+                        y: obj.y,
+                        width: obj.width || 0,
+                        height: obj.height || 0,
+                        isPoint: obj.point || false
+                    };
+                    
+                    // If it's a point object, we'll use it as the exact spawn point
+                    if (this.spawnArea.isPoint) {
+                        console.log(`📍 Spawn point at (${this.spawnArea.x}, ${this.spawnArea.y})`);
+                    } else {
+                        console.log(`📍 Spawn area at (${this.spawnArea.x}, ${this.spawnArea.y}) size: ${this.spawnArea.width}x${this.spawnArea.height}`);
+                    }
+                }
+            });
+        }
+         // Fallback to default spawn if no spawn area found
+        if (!this.spawnArea) {
+            console.warn('⚠️ No spawn area found in map, using default position');
+            this.spawnArea = {
+                x: 100,
+                y: 200,
+                isPoint: true
+            };
+        }
+    }
+
+    getSpawnPosition() {
+        if (!this.spawnArea) {
+            return { x: 100, y: 200 }; // Default fallback
+        }
+
+        if (this.spawnArea.isPoint) {
+            // For point spawn, return exact position
+            return {
+                x: this.spawnArea.x,
+                y: this.spawnArea.y
+            };
+        } else {
+            // For area spawn, return random position within the area
+            return {
+                x: this.spawnArea.x + Math.random() * (this.spawnArea.width || 50),
+                y: this.spawnArea.y + Math.random() * (this.spawnArea.height || 50)
+            };
         }
     }
 

@@ -16,10 +16,14 @@ export class PlayerManager {
 
         if (!playerData || !playerData.position) {
             console.error('❌ Invalid player data received:', playerData);
+
+            // USE SPAWN AREA FOR DEFAULT POSITION
+            const spawnPosition = this.scene.mapManager.getSpawnPosition();
+
             playerData = {
                 id: 'local-player',
                 name: 'Player',
-                position: { x: 100, y: 200 },
+                position: spawnPosition, // Use spawn area position
                 velocity: { x: 0, y: 0 },
                 animation: 'idle',
                 color: 0xff6b6b
@@ -93,10 +97,13 @@ export class PlayerManager {
                 return;
             }
 
+            // Use provided position or default to spawn area
+            const spawnPosition = this.scene.mapManager.getSpawnPosition();
+
             const playerData = {
                 id: playerId,
                 name: `Player${playerId.substring(0, 4)}`,
-                position: position,
+                position: position || spawnPosition, // Use network position or spawn area
                 velocity: velocity,
                 animation: animation,
                 color: this.getPlayerColor(playerId)
@@ -105,7 +112,7 @@ export class PlayerManager {
             otherPlayer = new MultiplayerPlayer(this.scene, playerData, false);
             this.otherPlayers.set(playerId, otherPlayer);
 
-            console.log(`👥 Created remote player ${playerId} at (${position.x}, ${position.y})`);
+            console.log(`👥 Created remote player ${playerId} at (${playerData.position.x}, ${playerData.position.y})`);
         }
 
         // Store update time for interpolation
