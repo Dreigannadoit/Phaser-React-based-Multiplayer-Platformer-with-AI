@@ -5,6 +5,7 @@ import Phaser from 'phaser'
 import PlatformerScene from './PlatformerScene'
 import QuizPopup from '../Quiz/QuizPopup'
 import MultiplayerManager from './MultiplayerManager'
+import PlayerStats from './PlayerStats' // Import the new component
 import { useSocket } from '../../context/SocketContext' // Import the socket context
 
 const Game = () => {
@@ -12,7 +13,7 @@ const Game = () => {
     const gameRef = useRef(null)
     const [quizData, setQuizData] = useState(null)
     const [multiplayerManager, setMultiplayerManager] = useState(null)
-    const { socket } = useSocket() // Get the shared socket
+    const { socket } = useSocket()
 
     useEffect(() => {
         // Get player data from localStorage
@@ -72,6 +73,8 @@ const Game = () => {
         };
     }, [roomId, socket]); // Add socket to dependencies
 
+    
+
     const handleQuizAnswer = (isCorrect) => {
         if (window.quizManager) {
             window.quizManager.handleQuizAnswer(isCorrect);
@@ -90,7 +93,8 @@ const Game = () => {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#1a1a1a'
+        backgroundColor: '#1a1a1a',
+        position: 'relative' // Important for positioning PlayerStats
     }
 
     const gameContainerStyle = {
@@ -104,13 +108,17 @@ const Game = () => {
         overflow: 'hidden'
     }
 
-    return (
+     return (
         <div className="game-wrapper" style={gameWrapperStyle}>
+            {/* Player Stats Component */}
+            <PlayerStats />
+            
             <div 
                 id="game-container" 
                 ref={gameRef} 
                 style={gameContainerStyle}
             ></div>
+            
             <QuizPopup
                 isVisible={!!quizData}
                 question={quizData?.question}

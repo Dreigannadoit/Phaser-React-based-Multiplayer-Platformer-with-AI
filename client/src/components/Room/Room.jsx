@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { useSocket } from '../../context/SocketContext' // Fixed import path
+import { useSocket } from '../../context/SocketContext' 
 
 const Room = () => {
     const { roomId } = useParams()
@@ -14,7 +14,7 @@ const Room = () => {
 
     useEffect(() => {
         if (!socket) {
-            console.log('⏳ Waiting for socket connection...')
+            console.log(' Waiting for socket connection...')
             return
         }
 
@@ -34,7 +34,7 @@ const Room = () => {
         setPlayerName(decodedName)
         setIsHost(host)
 
-        console.log('🔗 Connecting to room...', { roomId, playerName: decodedName, isHost: host })
+        console.log(' Connecting to room...', { roomId, playerName: decodedName, isHost: host })
 
         // Join room immediately with player info using shared socket
         socket.emit('join-game', {
@@ -113,11 +113,11 @@ const Room = () => {
 
         // Connection events for debugging
         socket.on('connect', () => {
-            console.log('✅ Connected to server in Room')
+            console.log(' Connected to server in Room')
         })
 
         socket.on('disconnect', () => {
-            console.log('❌ Disconnected from server in Room')
+            console.log(' Disconnected from server in Room')
         })
 
         socket.on('connect_error', (error) => {
@@ -214,7 +214,7 @@ const Room = () => {
                     <div>
                         <h1>Room: {roomId}</h1>
                         <p className="player-info">
-                            {isHost ? '🎯 Host' : '👤 Player'}: {playerName}
+                            {isHost ? ' Host' : '👤 Player'}: {playerName}
                             {currentPlayer && ` (ID: ${currentPlayer.id.substring(0, 8)}...)`}
                         </p>
                         <p className="room-status">
@@ -224,15 +224,15 @@ const Room = () => {
                     <div className="header-actions">
                         {isHost ? (
                             <button onClick={copyHostLink} className="copy-button">
-                                📋 Copy Host Link
+                                 Copy Host Link
                             </button>
                         ) : (
                             <button onClick={copyRoomLink} className="copy-button">
-                                📋 Copy Player Link
+                                 Copy Player Link
                             </button>
                         )}
                         <button onClick={leaveRoom} className="leave-button">
-                            🚪 Leave
+                             Leave
                         </button>
                     </div>
                 </div>
@@ -248,7 +248,7 @@ const Room = () => {
                             {players.map((player, index) => (
                                 <div key={player.id} className={`player-card ${player.id === socket?.id ? 'current-player' : ''}`}>
                                     <span className="player-avatar">
-                                        {player.isHost ? '🎯' : '👤'}
+                                        {player.isHost ? '' : ''}
                                     </span>
                                     <div className="player-info">
                                         <span className="player-name">
@@ -262,7 +262,7 @@ const Room = () => {
                                         </span>
                                     </div>
                                     <span className="player-status">
-                                        {player.ready ? '✅ Ready' : '⏳ Waiting'}
+                                        {player.ready ? ' Ready' : ' Waiting'}
                                     </span>
                                 </div>
                             ))}
@@ -277,7 +277,7 @@ const Room = () => {
                             disabled={players.length < 1}
                             className={`start-button ${players.length < 1 ? 'disabled' : ''}`}
                         >
-                            🚀 Start Game ({players.length} player{players.length !== 1 ? 's' : ''} ready)
+                             Start Game ({players.length} player{players.length !== 1 ? 's' : ''} ready)
                         </button>
                         <p className="host-instructions">
                             {players.length < 2
@@ -289,11 +289,11 @@ const Room = () => {
 
                 {!isHost && currentPlayer && (
                     <div className="player-waiting">
-                        <h3>✅ Joined as Player</h3>
+                        <h3>Joined as Player</h3>
                         <p>Waiting for host to start the game...</p>
                         <div className="player-ready">
                             <button onClick={handleReadyToggle} className="ready-button">
-                                {currentPlayer.ready ? '✅ Ready!' : 'Mark as Ready'}
+                                {currentPlayer.ready ? 'Ready!' : 'Mark as Ready'}
                             </button>
                         </div>
                         <div className="loading-spinner"></div>

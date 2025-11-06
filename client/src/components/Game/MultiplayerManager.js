@@ -88,23 +88,22 @@ class MultiplayerManager {
     }
 
     setupSocketListeners() {
-          this.socket.on('player-assigned', (data) => {
+        this.socket.on('player-assigned', (data) => {
             this.playerId = data.playerId;
             this.isHost = data.isHost;
             console.log('✅ Player assigned:', data);
-            
+
             // Clear the connection timeout since we're connected
             if (this.connectionTimeout) {
                 clearTimeout(this.connectionTimeout);
             }
         });
 
-
         this.socket.on('game-state', (data) => {
             console.log('📊 Received game state:', data);
 
-            // Wait a bit for the scene to be fully ready
-            setTimeout(() => {
+            // Use a more reliable way to ensure scene is ready
+            const setupPlayer = () => {
                 if (window.gameScene && data.players) {
                     const localPlayerData = data.players.find(p => p.id === this.playerId);
                     if (localPlayerData) {
@@ -114,6 +113,17 @@ class MultiplayerManager {
                         console.warn('❌ Local player data not found in game state');
                         console.log('Available players:', data.players.map(p => ({ id: p.id, name: p.name })));
                         console.log('Looking for playerId:', this.playerId);
+
+                        // Create fallback player data
+                        const fallbackPlayerData = {
+                            id: this.playerId,
+                            name: this.playerName,
+                            position: { x: 100, y: 200 },
+                            velocity: { x: 0, y: 0 },
+                            animation: 'idle',
+                            color: 0xff6b6b
+                        };
+                        window.gameScene.setLocalPlayer(fallbackPlayerData);
                     }
 
                     // Create other players
@@ -129,18 +139,44 @@ class MultiplayerManager {
                         }
                     });
                 } else {
-                    console.warn('❌ Game scene not ready or no players in game state');
-                    console.log('Game scene available:', !!window.gameScene);
-                    console.log('Players in data:', data?.players?.length || 0);
+                    console.warn('❌ Game scene not ready, retrying...');
+                    setTimeout(setupPlayer, 100);
                 }
-            }, 500);
+            };
+
+            // Start the setup process
+            setTimeout(setupPlayer, 100);
         });
 
         this.socket.on('player-moved', (data) => {
             if (window.gameScene && data.playerId !== this.playerId) {
+                console.log(`📥 Received move for player ${data.playerId}:`, {
+                    x: data.position.x,
+                    y: data.position.y,
+                    animation: data.animation
+                });
                 window.gameScene.updateOtherPlayer(data);
             }
         });
+        // Add periodic position sync request
+        // this.syncInterval = setInterval(() => {
+        //     if (this.socket && this.playerId && this.socket.connected) {
+        //         // Request full game state sync periodically
+        //         this.socket.emit('request-sync', {
+        //             roomId: this.roomId,
+        //             playerId: this.playerId
+        //         });
+        //     }
+        // }, 5000); // Sync every 5 seconds
+
+
+        this.socket.on('game-state-sync', (data) => {
+            console.log('🔄 Received game state sync for large room');
+            if (window.gameScene && window.gameScene.handleGameStateSync) {
+                window.gameScene.handleGameStateSync(data);
+            }
+        });
+
 
         this.socket.on('player-joined', (player) => {
             console.log('👋 Player joined:', player.name);
@@ -180,20 +216,55 @@ class MultiplayerManager {
         this.socket.on('disconnect', () => {
             console.log('❌ Disconnected from server from Game');
         });
+
+        this.socket.on('player-coins-updated', (data) => {
+            console.log('💰 Coin update received:', data);
+            if (window.gameScene) {
+                window.gameScene.updatePlayerCoins(data);
+            }
+        });
+
+        this.socket.on('coin-collected', (data) => {
+            console.log('💰 Coin collected event:', data);
+            // You could add visual effects or sounds here
+        });
     }
 
     sendPlayerMovement(position, velocity, animation) {
-        if (this.socket && this.playerId) {
-            this.socket.emit('player-move', {
-                roomId: this.roomId,
-                playerId: this.playerId,
-                position,
-                velocity,
-                animation
-            });
+        // SAFETY CHECK: Ensure we have valid data before sending
+        if (!this.socket || !this.playerId) {
+            console.warn('❌ Cannot send movement: no socket or playerId');
+            return;
         }
-    }
 
+        // Validate position and velocity
+        const safePosition = {
+            x: position?.x || 0,
+            y: position?.y || 0
+        };
+
+        const safeVelocity = {
+            x: velocity?.x || 0,
+            y: velocity?.y || 0
+        };
+
+        const safeAnimation = animation || 'idle';
+
+        console.log(`🚀 SENDING movement for player ${this.playerId}:`, {
+            position: safePosition,
+            velocity: safeVelocity,
+            animation: safeAnimation
+        });
+
+        this.socket.emit('player-move', {
+            roomId: this.roomId,
+            playerId: this.playerId,
+            position: safePosition,
+            velocity: safeVelocity,
+            animation: safeAnimation,
+            timestamp: Date.now()
+        });
+    }
     sendCoinCollection(coinId) {
         if (this.socket && this.playerId) {
             this.socket.emit('collect-coin', {
@@ -215,9 +286,11 @@ class MultiplayerManager {
     }
 
     cleanup() {
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+        }
         if (this.socket) {
             this.socket.emit('leave-game', this.roomId);
-            // Don't disconnect the shared socket
         }
     }
 }

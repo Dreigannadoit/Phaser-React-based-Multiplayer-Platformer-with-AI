@@ -95,7 +95,7 @@ const Home = () => {
     return (
         <div className="home-container">
             <div className="home-content">
-                <h1 className="home-title">🎮 Platformer Quiz Game</h1>
+                <h1 className="home-title">The Notebook</h1>
                 <p className="home-subtitle">Host or join a multiplayer game session</p>
 
                 <div className="home-actions">
@@ -130,18 +130,8 @@ const Home = () => {
                         onClick={handleHostGame}
                         className="host-button"
                     >
-                        🎯 Host Game
+                         Host Game
                     </button>
-                </div>
-
-                <div className="home-info">
-                    <h3>How it works:</h3>
-                    <ul>
-                        <li>🎯 <strong>Host</strong>: Create a room and wait for players to join</li>
-                        <li>👥 <strong>Players</strong>: Join with room ID and play the game</li>
-                        <li>👀 <strong>Host</strong>: Spectate and track player progress (cannot play)</li>
-                        <li>💰 <strong>Players</strong>: Collect coins and answer quizzes</li>
-                    </ul>
                 </div>
             </div>
         </div>

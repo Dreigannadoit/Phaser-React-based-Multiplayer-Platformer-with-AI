@@ -1,17 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --notebook-yellow: #f7f0c6;
+  --notebook-line: #e0d8a6;
+  --notebook-shadow: #d4c99e;
+  --pixel-red: #ff4757;
+  --pixel-blue: #5352ed;
+  --pixel-green: #2ed573;
+  --pixel-dark: #2f3542;
+  --pixel-border: #5a5a5a;
 }
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  image-rendering: pixelated;
+}
+
+body {
+  font-family: 'VT323', monospace;
+  background: #8b7355;
+  color: var(--pixel-dark);
+  line-height: 1.4;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
 
 a {
   font-weight: 500;
@@ -22,6 +40,23 @@ a:hover {
   color: #535bf2;
 }
 
+
+::selection {
+  background: var(--pixel-blue);
+  color: white;
+}
+
+/* Pixel Cursor */
+body {
+  cursor: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='6' y='0' width='4' height='4' fill='%235352ed'/%3E%3Crect x='10' y='4' width='2' height='2' fill='%235352ed'/%3E%3C/svg%3E"), auto;
+}
+
+button, input {
+  cursor: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='6' y='0' width='4' height='4' fill='%23ff4757'/%3E%3Crect x='10' y='4' width='2' height='2' fill='%23ff4757'/%3E%3C/svg%3E"), pointer;
+}
+
+
+input{color: #1a1a1a;}
 body {
   margin: 0;
   display: flex;
@@ -65,4 +100,10 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+
+#root {
+  height: 100%;
+  width: 100%;
 }

@@ -173,16 +173,54 @@ io.on('connection', (socket) => {
         if (room) {
             const player = room.players.find(p => p.id === data.playerId);
             if (player) {
+                console.log(`🎯 Processing move from ${player.name} (${data.playerId}):`, {
+                    position: data.position,
+                    animation: data.animation,
+                    roomPlayers: room.players.length
+                });
+
+                // Update player state with client position
                 player.position = data.position;
                 player.velocity = data.velocity;
                 player.animation = data.animation;
+                player.lastUpdate = Date.now();
 
-                // Broadcast to other players
+                // Get all other player IDs in room for broadcasting
+                const otherPlayerIds = room.players
+                    .filter(p => p.id !== data.playerId)
+                    .map(p => p.id);
+
+                console.log(`📤 Broadcasting to ${otherPlayerIds.length} other players:`, otherPlayerIds);
+
+                // Broadcast to ALL other players immediately
                 socket.to(data.roomId).emit('player-moved', {
                     playerId: data.playerId,
                     position: data.position,
                     velocity: data.velocity,
-                    animation: data.animation
+                    animation: data.animation,
+                    timestamp: Date.now()
+                });
+
+                console.log(`✅ Broadcast complete for ${player.name}`);
+            } else {
+                console.log(`❌ Player ${data.playerId} not found in room ${data.roomId}`);
+            }
+        } else {
+            console.log(`❌ Room ${data.roomId} not found`);
+        }
+    });
+
+
+    socket.on('request-sync', (data) => {
+        const room = rooms.get(data.roomId);
+        if (room) {
+            const player = room.players.find(p => p.id === data.playerId);
+            if (player) {
+                // Send current game state for synchronization
+                socket.emit('game-state', {
+                    players: room.players,
+                    coins: room.coins,
+                    sync: true // Flag this as a sync response
                 });
             }
         }
@@ -208,7 +246,7 @@ io.on('connection', (socket) => {
                     newCoinCount: player.coins
                 });
 
-                // Also update coins for host/spectators
+                // Also send individual coin updates
                 io.to(data.roomId).emit('player-coins-updated', {
                     playerId: data.playerId,
                     playerName: player.name,
@@ -236,10 +274,21 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Player movement
-    socket.on('player-move', (data) => {
-        socket.to(data.roomId).emit('player-moved', data);
-    });
+    // Add periodic game state sync for large rooms
+    setInterval(() => {
+        rooms.forEach((room, roomId) => {
+            if (room.players.length > 10) { // Only sync large rooms periodically
+                io.to(roomId).emit('game-state-sync', {
+                    players: room.players.map(p => ({
+                        id: p.id,
+                        position: p.position,
+                        velocity: p.velocity,
+                        animation: p.animation
+                    }))
+                });
+            }
+        });
+    }, 2000); // Sync every 2 seconds for large rooms
 
     // Quiz results
     socket.on('quiz-result', (data) => {

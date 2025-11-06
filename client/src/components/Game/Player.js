@@ -2,50 +2,70 @@ export class Player {
     constructor(scene, x, y) {
         this.scene = scene;
         this.sprite = null;
-        this.speed = 160;
-        this.jumpForce = 280;
+
+        // ORIGINAL MOVEMENT VALUES - no scaling
+        this.speed = 160; // Original speed
+        this.jumpForce = 330; // Original jump force
+
+
         this.cursors = null;
         this.wasdKeys = null;
         this.spaceKey = null;
-        
+
         // Animation state
         this.isGrounded = false;
         this.isMoving = false;
         this.facingRight = true;
-        
+
         // Coyote time variables
         this.coyoteTime = 0;
         this.coyoteTimeThreshold = 100;
         this.wasGrounded = false;
-        
+
         // Jump buffer variables
         this.jumpBuffer = 0;
         this.jumpBufferThreshold = 150;
-        
+
         this.create(x, y);
     }
 
+    // client/src/components/Game/Player.js - Update create method
     create(x, y) {
         // Create player sprite using the first idle frame
         this.sprite = this.scene.physics.add.sprite(x, y, 'player_idle_1');
-        this.sprite.setBounce(0.1);
-        this.sprite.setCollideWorldBounds(true);
-        this.sprite.setSize(16, 16);
-        
+
+        // CRITICAL: Ensure physics body is properly configured
+        if (this.sprite.body) {
+            this.sprite.setBounce(0.1);
+            this.sprite.setCollideWorldBounds(true);
+
+            // ORIGINAL PHYSICS BODY - no scaling
+            this.sprite.setSize(16, 16);
+
+            // Enable physics
+            this.sprite.body.enable = true;
+        }
+
         // Set up input - both arrow keys and WASD
         this.cursors = this.scene.input.keyboard.createCursorKeys();
-        
+
         // Set up WASD keys
         this.wasdKeys = this.scene.input.keyboard.addKeys('W,A,S,D');
-        
+
         // Set up spacebar key
         this.spaceKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-        
+
         // Start with idle animation
         this.sprite.play('idle');
-        
+
+        console.log('✅ Player created with input controls and physics body');
         return this.sprite;
     }
+
+    isReady() {
+        return this.sprite && this.sprite.active && this.sprite.body && this.sprite.body.enable;
+    }
+
 
     destroy() {
         if (this.sprite) {
@@ -59,13 +79,16 @@ export class Player {
     }
 
     update(time, delta) {
-        // Only update if sprite exists and is active
-        if (!this.sprite || !this.sprite.active) return;
-        
-        // Update grounded state
+        // Only update if sprite exists and is active AND has a physics body
+        if (!this.sprite || !this.sprite.active || !this.sprite.body) {
+            console.warn('Player sprite or physics body not ready');
+            return;
+        }
+
+        // Update grounded state with safety check
         this.wasGrounded = this.isGrounded;
         this.isGrounded = this.sprite.body.touching.down;
-        
+
         // Update coyote time
         if (this.isGrounded) {
             this.coyoteTime = this.coyoteTimeThreshold;
@@ -76,7 +99,7 @@ export class Player {
             // In air, decrement coyote time
             this.coyoteTime = Math.max(0, this.coyoteTime - delta);
         }
-        
+
         // Update jump buffer
         const jumpPressed = this.cursors.up.isDown || this.wasdKeys.W.isDown || this.spaceKey.isDown;
         if (jumpPressed) {
@@ -84,16 +107,16 @@ export class Player {
         } else {
             this.jumpBuffer = Math.max(0, this.jumpBuffer - delta);
         }
-        
+
         // Reset horizontal movement
         this.sprite.setVelocityX(0);
-        
+
         // Horizontal movement - check both arrow keys and WASD
         const leftPressed = this.cursors.left.isDown || this.wasdKeys.A.isDown;
         const rightPressed = this.cursors.right.isDown || this.wasdKeys.D.isDown;
-        
+
         this.isMoving = false;
-        
+
         if (leftPressed) {
             this.sprite.setVelocityX(-this.speed);
             this.isMoving = true;
@@ -103,20 +126,38 @@ export class Player {
             this.isMoving = true;
             this.facingRight = true;
         }
-        
+
         // Update sprite flip based on direction
         this.sprite.setFlipX(!this.facingRight);
-        
+
         // Handle jumping with coyote time and jump buffering
         this.handleJump();
-        
+
         // Update animations based on player state
         this.updateAnimations();
     }
 
+
+
+    getNetworkAnimation() {
+        if (!this.sprite || !this.sprite.active) return 'idle';
+
+        // More precise animation detection for networking
+        if (!this.isGrounded) {
+            return 'jump';
+        } else if (this.isMoving) {
+            return 'run';
+        } else {
+            return 'idle';
+        }
+    }
+
     handleJump() {
+        // Ensure sprite and body exist
+        if (!this.sprite || !this.sprite.body) return;
+
         const canJump = this.isGrounded || this.coyoteTime > 0;
-        
+
         if (this.jumpBuffer > 0 && canJump) {
             this.sprite.setVelocityY(-this.jumpForce);
             this.jumpBuffer = 0; // Consume the jump buffer
@@ -126,7 +167,7 @@ export class Player {
 
     updateAnimations() {
         if (!this.sprite || !this.sprite.active) return;
-        
+
         // If player is in the air
         if (!this.isGrounded) {
             if (this.sprite.anims.currentAnim?.key !== 'jump') {
@@ -166,11 +207,11 @@ export class Player {
     takeDamage() {
         // Only take damage if sprite exists and is active
         if (!this.sprite || !this.sprite.active) return;
-        
+
         // Knockback effect
         this.sprite.setVelocityY(-200);
         this.setTint(0xff0000);
-        
+
         // Reset tint after short time
         this.scene.time.delayedCall(200, () => {
             this.clearTint();
