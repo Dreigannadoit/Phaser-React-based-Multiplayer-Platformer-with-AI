@@ -40,6 +40,14 @@ export default class PlatformerScene extends Phaser.Scene {
         // Backgrounds
         this.backgrounds = [];
         this.currentCoin = null;
+
+        // NEW: Respawn system
+        this.isRespawning = false;
+        this.respawnTimer = 0;
+        this.respawnTime = 10; // seconds
+        this.respawnText = null;
+        this.respawnCountdownText = null;
+        this.deathEffect = null;
     }
 
     preload() {
@@ -195,6 +203,8 @@ export default class PlatformerScene extends Phaser.Scene {
             console.log(`- Player position: (${this.playerManager.getLocalPlayer()?.getSprite()?.x}, ${this.playerManager.getLocalPlayer()?.getSprite()?.y})`);
             console.log(`- Coins collected: ${this.coinsCollected}`);
             console.log(`- Is multiplayer: ${this.isMultiplayer}`);
+            console.log(`- Is respawning: ${this.isRespawning}`);
+            console.log(`- Respawn timer: ${this.respawnTimer}`);
         });
 
         window.quizManager = this.quizManager;
@@ -313,6 +323,12 @@ export default class PlatformerScene extends Phaser.Scene {
             return;
         }
 
+        // Handle respawn countdown
+        if (this.isRespawning) {
+            this.updateRespawnTimer(delta);
+            return; // Don't update game logic while respawning
+        }
+
         // Emit game state to React component
         this.emitGameStateUpdate();
 
@@ -325,10 +341,175 @@ export default class PlatformerScene extends Phaser.Scene {
         this.uiManager.updateHUDPosition();
         this.updateParallaxBackgrounds();
 
-        // Check game over
-        if (this.lives <= 0) {
-            this.restartGame();
+        // NEW: Check for death and start respawn process
+        if (this.lives <= 0 && !this.isRespawning) {
+            this.handlePlayerDeath();
         }
+    }
+
+    handlePlayerDeath() {
+        console.log('💀 Player died! Starting respawn process...');
+
+        this.isRespawning = true;
+        this.respawnTimer = this.respawnTime;
+
+        // Disable player controls and hide player
+        const localPlayer = this.playerManager.getLocalPlayer();
+        if (localPlayer && localPlayer.getSprite()) {
+            localPlayer.getSprite().setVisible(false);
+            localPlayer.getSprite().body.enable = false; // Disable physics
+        }
+
+        // Create death effect
+        this.createDeathEffect();
+
+        // Create respawn UI
+        this.createRespawnUI();
+
+        // Stop camera from following player
+        this.cameras.main.stopFollow();
+
+        // Emit death state
+        this.emitGameStateUpdate();
+    }
+
+    createDeathEffect() {
+        const localPlayer = this.playerManager.getLocalPlayer();
+        if (!localPlayer || !localPlayer.getSprite()) return;
+
+        const playerX = localPlayer.getSprite().x;
+        const playerY = localPlayer.getSprite().y;
+
+        // Create explosion/particle effect
+        this.deathEffect = this.add.particles(playerX, playerY, 'coin', {
+            speed: { min: 50, max: 200 },
+            scale: { start: 0.5, end: 0 },
+            blendMode: 'ADD',
+            lifespan: 1000,
+            gravityY: 300,
+            quantity: 10,
+            emitting: false
+        });
+
+        // Emit particles once
+        this.deathEffect.explode(10);
+
+        // Screen shake for dramatic effect
+        this.cameras.main.shake(500, 0.02);
+    }
+
+    createRespawnUI() {
+        const centerX = this.cameras.main.worldView.x + this.cameras.main.width / 2;
+        const centerY = this.cameras.main.worldView.y + this.cameras.main.height / 2;
+
+        // Create respawn message
+        this.respawnText = this.add.text(centerX, centerY - 30, 'You Died!', {
+            fontSize: '32px',
+            fill: '#ff0000',
+            stroke: '#000000',
+            strokeThickness: 4,
+            fontFamily: 'Arial'
+        });
+        this.respawnText.setOrigin(0.5);
+        this.respawnText.setScrollFactor(0);
+        this.respawnText.setDepth(1000);
+
+        // Create countdown text
+        this.respawnCountdownText = this.add.text(centerX, centerY + 20, `Respawning in ${this.respawnTimer}...`, {
+            fontSize: '24px',
+            fill: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 3,
+            fontFamily: 'Arial'
+        });
+        this.respawnCountdownText.setOrigin(0.5);
+        this.respawnCountdownText.setScrollFactor(0);
+        this.respawnCountdownText.setDepth(1000);
+    }
+
+    updateRespawnTimer(delta) {
+        // Convert delta from milliseconds to seconds
+        const deltaSeconds = delta / 1000;
+        this.respawnTimer = Math.max(0, this.respawnTimer - deltaSeconds);
+
+        // Update countdown text
+        if (this.respawnCountdownText) {
+            const secondsLeft = Math.ceil(this.respawnTimer);
+            this.respawnCountdownText.setText(`Respawning in ${secondsLeft}...`);
+
+            // Flash effect when getting close to respawn
+            if (secondsLeft <= 3) {
+                this.respawnCountdownText.setFill('#ffff00'); // Yellow for last 3 seconds
+            }
+        }
+
+        // Check if respawn time is up
+        if (this.respawnTimer <= 0) {
+            this.respawnPlayer();
+        }
+    }
+
+    respawnPlayer() {
+        console.log('🔄 Respawning player...');
+
+        // Clean up respawn UI
+        if (this.respawnText) {
+            this.respawnText.destroy();
+            this.respawnText = null;
+        }
+        if (this.respawnCountdownText) {
+            this.respawnCountdownText.destroy();
+            this.respawnCountdownText = null;
+        }
+
+        // Clean up death effect
+        if (this.deathEffect) {
+            this.deathEffect.destroy();
+            this.deathEffect = null;
+        }
+
+        // Reset lives and respawn state
+        this.lives = 3;
+        this.isRespawning = false;
+
+        // Get respawn position (you might want to set specific spawn points)
+        const spawnX = 100;
+        const spawnY = 200;
+
+        // Reset player position and state
+        const localPlayer = this.playerManager.getLocalPlayer();
+        if (localPlayer && localPlayer.getSprite()) {
+            localPlayer.getSprite().setPosition(spawnX, spawnY);
+            localPlayer.getSprite().setVisible(true);
+            localPlayer.getSprite().body.enable = true; // Re-enable physics
+            localPlayer.getSprite().setVelocity(0, 0); // Reset velocity
+
+            // Reset any stun states
+            if (localPlayer.isStunned) {
+                localPlayer.isStunned = false;
+                localPlayer.clearTint();
+                localPlayer.getSprite().setAlpha(1);
+            }
+        }
+
+        // Make camera follow player again
+        this.cameras.main.startFollow(localPlayer.getSprite());
+
+        // Reset coins (optional - if you want to respawn collected coins)
+        // this.respawnCoins();
+
+        console.log('✅ Player respawned!');
+
+        // Emit state update
+        this.emitGameStateUpdate();
+    }
+
+    respawnCoins() {
+        const coins = this.mapManager.getCoins();
+        coins.clear(true, true); // Clear existing coins
+
+        // Recreate coins from map (you might need to call your coin creation method)
+        // this.mapManager.createCoins(this.mapManager.map); // You'll need to adjust this based on your MapManager
     }
 
     emitGameStateUpdate() {
@@ -357,10 +538,11 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     restartGame() {
-        // Use scene restart instead of trying to manually reset
-        this.scene.restart();
+        // NEW: Use respawn system instead of immediate restart
+        if (this.lives <= 0 && !this.isRespawning) {
+            this.handlePlayerDeath();
+        }
     }
-
     // Quiz methods
     async handleSinglePlayerCoin(coin) {
         // Store the coin reference
@@ -446,6 +628,24 @@ export default class PlatformerScene extends Phaser.Scene {
         this.score = 0;
         this.lives = 3;
         this.coinsCollected = 0;
+
+        // NEW: Reset respawn system
+        this.isRespawning = false;
+        this.respawnTimer = 0;
+
+        // Clean up any existing respawn UI
+        if (this.respawnText) {
+            this.respawnText.destroy();
+            this.respawnText = null;
+        }
+        if (this.respawnCountdownText) {
+            this.respawnCountdownText.destroy();
+            this.respawnCountdownText = null;
+        }
+        if (this.deathEffect) {
+            this.deathEffect.destroy();
+            this.deathEffect = null;
+        }
 
         // Reset managers
         if (this.uiManager) {

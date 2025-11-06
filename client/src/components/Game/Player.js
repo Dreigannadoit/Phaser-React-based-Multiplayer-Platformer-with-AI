@@ -85,7 +85,18 @@ export class Player {
             return;
         }
 
-        // Update grounded state with safety check
+        if (this.scene.isRespawning) {
+            return;
+        }
+
+        // If player is stunned, skip input processing but continue physics
+        if (this.isStunned) {
+            // Still update animations based on current state
+            this.updateAnimations();
+            return;
+        }
+
+        // Rest of your existing update code...
         this.wasGrounded = this.isGrounded;
         this.isGrounded = this.sprite.body.touching.down;
 
@@ -93,10 +104,8 @@ export class Player {
         if (this.isGrounded) {
             this.coyoteTime = this.coyoteTimeThreshold;
         } else if (this.wasGrounded && !this.isGrounded) {
-            // Just left the ground, start coyote time
             this.coyoteTime = this.coyoteTimeThreshold;
         } else {
-            // In air, decrement coyote time
             this.coyoteTime = Math.max(0, this.coyoteTime - delta);
         }
 
@@ -108,7 +117,7 @@ export class Player {
             this.jumpBuffer = Math.max(0, this.jumpBuffer - delta);
         }
 
-        // Reset horizontal movement
+        // Reset horizontal movement (only if not stunned)
         this.sprite.setVelocityX(0);
 
         // Horizontal movement - check both arrow keys and WASD
@@ -136,7 +145,6 @@ export class Player {
         // Update animations based on player state
         this.updateAnimations();
     }
-
 
 
     getNetworkAnimation() {
@@ -204,17 +212,38 @@ export class Player {
         }
     }
 
-    takeDamage() {
-        // Only take damage if sprite exists and is active
+    // Enhanced takeDamage method with directional knockback
+    takeDamage(damageSource = null) {
         if (!this.sprite || !this.sprite.active) return;
 
-        // Knockback effect
-        this.sprite.setVelocityY(-200);
-        this.setTint(0xff0000);
+        console.log('💥 Player taking damage with directional knockback!');
 
-        // Reset tint after short time
-        this.scene.time.delayedCall(200, () => {
+        const knockbackForce = 300;
+        const horizontalForce = 150;
+
+        let knockbackDirection = this.facingRight ? -1 : 1;
+
+        // If we have info about what caused the damage, use it for direction
+        if (damageSource && damageSource.x !== undefined) {
+            // Knock player away from the damage source
+            knockbackDirection = this.sprite.x < damageSource.x ? -1 : 1;
+        }
+
+        this.sprite.setVelocityX(knockbackDirection * horizontalForce);
+        this.sprite.setVelocityY(-knockbackForce);
+
+        // Visual and state effects
+        this.setTint(0xff0000);
+        this.sprite.setAlpha(0.8);
+        this.isStunned = true;
+
+        this.scene.time.delayedCall(500, () => {
+            this.isStunned = false;
             this.clearTint();
+            this.sprite.setAlpha(1);
         });
+
+        this.scene.cameras.main.shake(200, 0.02);
     }
+
 }

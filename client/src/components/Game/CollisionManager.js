@@ -28,7 +28,7 @@ export class CollisionManager {
         // Set up coin collection with proper overlap
         const coins = this.mapManager.getCoins();
         console.log(`💰 Coins available for collision: ${coins.getLength()}`);
-        
+
         this.scene.physics.add.overlap(sprite, coins, this.collectCoin.bind(this), this.checkCoinOverlap.bind(this), this);
 
         // Set up spike damage
@@ -40,22 +40,22 @@ export class CollisionManager {
     // Custom overlap check for coins
     checkCoinOverlap(player, coin) {
         if (!coin.active) return false;
-        
+
         const playerBounds = player.getBounds();
         const coinBounds = coin.getBounds();
-        
+
         const isOverlapping = Phaser.Geom.Rectangle.Overlaps(playerBounds, coinBounds);
-        
+
         if (isOverlapping) {
             console.log(`🎯 Coin overlap detected at (${coin.x}, ${coin.y})`);
         }
-        
+
         return isOverlapping;
     }
 
     collectCoin(player, coin) {
         console.log(`💰 Coin collected! Position: (${coin.x}, ${coin.y})`);
-        
+
         if (this.scene.isMultiplayer) {
             this.handleMultiplayerCoin(player, coin);
         } else {
@@ -66,15 +66,15 @@ export class CollisionManager {
     async handleMultiplayerCoin(player, coin) {
         console.log('🎮 Multiplayer coin collection');
         const coinId = this.findCoinId(coin);
-        
+
         if (coinId && window.multiplayerManager) {
             // Notify server about coin collection
             window.multiplayerManager.sendCoinCollection(coinId);
-            
+
             // Update local coins immediately for better UX
             this.scene.coinsCollected++;
             console.log(`📈 Coins collected: ${this.scene.coinsCollected}`);
-            
+
             // Show quiz for this player only
             await this.scene.handleMultiplayerCoin(coin);
         } else {
@@ -93,20 +93,51 @@ export class CollisionManager {
     }
 
     hitSpike(player, spike) {
-        this.scene.lives -= spike.damage;
-        console.log(`💔 Hit spike! Lives: ${this.scene.lives}`);
+        console.log('💥 Player hit spike!');
 
-        // Emit immediate state update
-        this.scene.emitGameStateUpdate();
+        const playerInstance = this.getPlayerFromSprite(player);
 
-        if (this.scene.localPlayer) {
-            this.scene.localPlayer.takeDamage();    
+        if (!playerInstance) {
+            console.warn('❌ Could not find player instance for spike damage');
+            return;
         }
+
+        // Don't process damage if player is already dead/respawning
+        if (this.scene.isRespawning) {
+            return;
+        }
+
+        this.scene.lives -= spike.damage;
+        console.log(`💔 Lives remaining: ${this.scene.lives}`);
+
+        // Pass spike position for directional knockback
+        playerInstance.takeDamage(spike);
+
+        this.scene.emitGameStateUpdate();
         this.scene.cameras.main.shake(100, 0.01);
 
-        // Check game over
+        // NEW: Let PlatformerScene handle death/respawn logic
         if (this.scene.lives <= 0) {
-            this.scene.restartGame();
+            console.log('🎮 Player died!');
+            // PlatformerScene will handle the respawn process in update()
         }
+    }
+    
+    // Helper method to get player instance from sprite
+    getPlayerFromSprite(sprite) {
+        const localPlayer = this.scene.playerManager.getLocalPlayer();
+        if (localPlayer && localPlayer.getSprite() === sprite) {
+            return localPlayer;
+        }
+
+        // Check other players if needed
+        const otherPlayers = this.scene.playerManager.getOtherPlayers();
+        for (let [playerId, player] of otherPlayers) {
+            if (player.getSprite() === sprite) {
+                return player;
+            }
+        }
+
+        return null;
     }
 }
