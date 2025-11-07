@@ -21,6 +21,33 @@ app.use(express.json());
 // Store active rooms
 const rooms = new Map();
 
+// Room-specific scoreboard update function
+// In server.js - Fix the updateRoomScoreboard function
+function updateRoomScoreboard(roomId) {
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    // DEBUG: Log the current room state
+    console.log(`🔍 DEBUG Room ${roomId} state:`);
+    console.log(`- Players in room:`, room.players.map(p => ({ id: p.id, name: p.name, coins: p.coins })));
+    console.log(`- Scoreboard entries:`, Array.from(room.scoreboard.entries()).map(([id, data]) => ({ id, name: data.name, coins: data.coins })));
+
+    // Get all players from scoreboard, sort by coins (descending)
+    const playersArray = Array.from(room.scoreboard.values())
+        .filter(player => player && player.name) // Filter out invalid entries
+        .sort((a, b) => b.coins - a.coins)
+        .slice(0, 10);
+
+    console.log(`📊 Room ${roomId} scoreboard updated:`, playersArray.map(p => ({
+        id: p.id,
+        name: p.name,
+        coins: p.coins
+    })));
+
+    // Broadcast to all players in THIS ROOM ONLY
+    io.to(roomId).emit('scoreboard-update', playersArray);
+}
+
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
@@ -37,22 +64,25 @@ io.on('connection', (socket) => {
                 players: [],
                 gameStarted: false,
                 coins: [],
-                createdAt: new Date()
+                createdAt: new Date(),
+                scoreboard: new Map() // Room-specific scoreboard
             });
         }
 
         const room = rooms.get(roomId);
-
-        // ... rest of the join logic from join-game handler
-        // OR simply call the same function:
-        socket.emit('join-game', data); // But better to refactor the logic
+        // Call join-game with the same data
+        socket.emit('join-game', data);
     });
 
-    // server/server.js - Update the join-game handler
     socket.on('join-game', (data) => {
         const { roomId, playerName, isHost } = data;
 
-        console.log(`🎮 Join-game request:`, { roomId, playerName, isHost, socketId: socket.id });
+        console.log(`🎮 JOIN-GAME REQUEST:`, {
+            socketId: socket.id,
+            playerName,
+            isHost,
+            roomId
+        });
 
         // Create room if it doesn't exist (allow host to create)
         if (!rooms.has(roomId)) {
@@ -61,12 +91,12 @@ io.on('connection', (socket) => {
                 console.log(`❌ Room ${roomId} doesn't exist and player is not host`);
                 return;
             }
-            // Host can create the room
             rooms.set(roomId, {
                 players: [],
                 gameStarted: false,
                 coins: [],
-                createdAt: new Date()
+                createdAt: new Date(),
+                scoreboard: new Map()
             });
             console.log(`✅ Room ${roomId} created by host`);
         }
@@ -74,32 +104,56 @@ io.on('connection', (socket) => {
         const room = rooms.get(roomId);
         console.log(`📊 Room ${roomId} currently has ${room.players.length} players`);
 
+        room.players.forEach((p, index) => {
+            console.log(`  Player ${index}: ${p.name} (${p.id}) - Host: ${p.isHost}`);
+        });
+
         // Check if this socket is already in the room (reconnection case)
         const existingPlayerIndex = room.players.findIndex(p => p.id === socket.id);
-        if (existingPlayerIndex !== -1) {
-            console.log(`🔄 Player ${playerName} reconnecting to room ${roomId}`);
 
-            // Update the existing player's socket ID and data
+        if (existingPlayerIndex !== -1) {
+            const oldPlayer = room.players[existingPlayerIndex];
+
+            console.log(`🔄 Player ${oldPlayer.name} reconnecting to room ${roomId} (was ${playerName})`);
+
+            // CRITICAL: Preserve the original name, don't allow name changes on reconnect
+            // Only update non-name properties
             room.players[existingPlayerIndex] = {
-                ...room.players[existingPlayerIndex],
-                name: playerName,
-                isHost: isHost,
-                position: { x: 100, y: 200 }, // Reset position or keep existing?
+                ...oldPlayer,
+                // DON'T update the name: keep the original name
+                isHost: isHost, // You might want to preserve this too
+                position: { x: 100, y: 200 },
                 velocity: { x: 0, y: 0 },
                 animation: 'idle'
             };
 
-            // Send player assignment
+            // Scoreboard should also keep the original name
+            // Don't update the scoreboard name on reconnect
+
+            // Send player assignment with ORIGINAL name
             socket.emit('player-assigned', {
                 playerId: socket.id,
-                isHost: isHost
+                isHost: oldPlayer.isHost, // Use original host status too
+                playerName: oldPlayer.name // Include the original name
             });
 
             // Send current game state to the reconnecting player
             socket.emit('game-state', {
-                players: room.players,
+                players: room.players.map(p => ({
+                    id: p.id,
+                    name: p.name, // This will have the original names
+                    isHost: p.isHost,
+                    position: p.position,
+                    velocity: p.velocity,
+                    animation: p.animation,
+                    color: p.color,
+                    coins: p.coins
+                })),
                 coins: room.coins
             });
+
+            // Send current scoreboard for this room only
+            updateRoomScoreboard(roomId);
 
             // Notify other players about reconnection
             socket.to(roomId).emit('player-reconnected', room.players[existingPlayerIndex]);
@@ -111,24 +165,36 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // Check if player name already exists in room (for different socket)
-        const nameExists = room.players.some(p => p.name === playerName && p.id !== socket.id);
+        // FIXED: Handle name conflicts by adding suffix instead of rejecting
+        let finalPlayerName = playerName;
+        let nameCounter = 1;
+
+        const nameExists = room.players.some(p => p.name === finalPlayerName && p.id !== socket.id);
         if (nameExists) {
-            socket.emit('join-error', 'Player name already taken in this room');
-            console.log(`❌ Player name ${playerName} already exists in room ${roomId}`);
-            return;
+            // Find a unique name by adding numbers
+            while (room.players.some(p => p.name === finalPlayerName)) {
+                finalPlayerName = `${playerName} ${nameCounter}`;
+                nameCounter++;
+                console.log(`🔄 Name conflict, trying: ${finalPlayerName}`);
+            }
+            console.log(`🔄 Resolved name conflict: "${playerName}" -> "${finalPlayerName}"`);
+        }
+
+        if (finalPlayerName !== playerName) {
+            console.log(`🔄 Resolved name conflict: "${playerName}" -> "${finalPlayerName}"`);
         }
 
         // Check if host already exists
         if (isHost && room.players.some(p => p.isHost)) {
+            const existingHost = room.players.find(p => p.isHost);
+            console.log(`❌ HOST CONFLICT: Room ${roomId} already has host: ${existingHost.name} (${existingHost.id})`);
             socket.emit('join-error', 'Room already has a host');
-            console.log(`❌ Room ${roomId} already has a host`);
             return;
         }
 
         const player = {
             id: socket.id,
-            name: playerName,
+            name: finalPlayerName, // Use the final resolved name
             isHost: isHost,
             ready: false,
             coins: 0,
@@ -139,10 +205,26 @@ io.on('connection', (socket) => {
             joinedAt: new Date()
         };
 
+        // DEBUG: Log the player being created
+        console.log(`👤 CREATING PLAYER:`, {
+            id: player.id,
+            name: player.name,
+            isHost: player.isHost,
+            color: player.color.toString(16)
+        });
+
         room.players.push(player);
         socket.join(roomId);
 
         console.log(`✅ Player ${player.name} added to room ${roomId}`);
+
+        // Initialize player in ROOM scoreboard (not global)
+        room.scoreboard.set(socket.id, {
+            id: socket.id,
+            name: finalPlayerName, // Use the actual final player name
+            coins: 0,
+            lastActive: new Date()
+        });
 
         // Send player assignment
         socket.emit('player-assigned', {
@@ -156,28 +238,41 @@ io.on('connection', (socket) => {
             coins: room.coins
         });
 
+        // Send current scoreboard for this room only
+        updateRoomScoreboard(roomId);
+
         // Notify other players in the room
-        socket.to(roomId).emit('player-joined', player);
+        socket.to(roomId).emit('player-joined', {
+            id: player.id,
+            name: player.name, // Use the actual player name
+            position: player.position,
+            velocity: player.velocity,
+            animation: player.animation,
+            color: player.color
+        });
 
         // Send updated player list to ALL players in the room (including the new one)
         io.to(roomId).emit('players-updated', room.players);
 
         console.log(`🎉 Player ${player.name} joined game in room ${roomId}`);
         console.log(`👥 Room ${roomId} now has ${room.players.length} players`);
+        console.log(`📋 Current players in room:`, room.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            isHost: p.isHost
+        })));
     });
-
-
     // Player movement
     socket.on('player-move', (data) => {
         const room = rooms.get(data.roomId);
         if (room) {
             const player = room.players.find(p => p.id === data.playerId);
             if (player) {
-                console.log(`🎯 Processing move from ${player.name} (${data.playerId}):`, {
-                    position: data.position,
-                    animation: data.animation,
-                    roomPlayers: room.players.length
-                });
+                // console.log(`🎯 Processing move from ${player.name} (${data.playerId}):`, {
+                //     position: data.position,
+                //     animation: data.animation,
+                //     roomPlayers: room.players.length
+                // });
 
                 // Update player state with client position
                 player.position = data.position;
@@ -185,23 +280,17 @@ io.on('connection', (socket) => {
                 player.animation = data.animation;
                 player.lastUpdate = Date.now();
 
-                // Get all other player IDs in room for broadcasting
-                const otherPlayerIds = room.players
-                    .filter(p => p.id !== data.playerId)
-                    .map(p => p.id);
-
-                console.log(`📤 Broadcasting to ${otherPlayerIds.length} other players:`, otherPlayerIds);
-
-                // Broadcast to ALL other players immediately
+                // Broadcast to ALL other players immediately WITH PLAYER NAME
                 socket.to(data.roomId).emit('player-moved', {
                     playerId: data.playerId,
+                    playerName: player.name, // CRITICAL: Include the actual player name
                     position: data.position,
                     velocity: data.velocity,
                     animation: data.animation,
                     timestamp: Date.now()
                 });
 
-                console.log(`✅ Broadcast complete for ${player.name}`);
+                // console.log(`✅ Broadcast complete for ${player.name}`);
             } else {
                 console.log(`❌ Player ${data.playerId} not found in room ${data.roomId}`);
             }
@@ -209,7 +298,6 @@ io.on('connection', (socket) => {
             console.log(`❌ Room ${data.roomId} not found`);
         }
     });
-
 
     socket.on('request-sync', (data) => {
         const room = rooms.get(data.roomId);
@@ -238,7 +326,30 @@ io.on('connection', (socket) => {
             if (player) {
                 player.coins += 1;
 
-                // Broadcast coin collection to all players
+                // UPDATE ROOM SCOREBOARD - FIXED: Ensure name is properly set
+                let scoreboardPlayer = room.scoreboard.get(data.playerId);
+                if (scoreboardPlayer) {
+                    // Update existing player - SYNC NAME FROM PLAYER OBJECT
+                    scoreboardPlayer.name = player.name; // CRITICAL: Sync the name
+                    scoreboardPlayer.coins = player.coins;
+                    scoreboardPlayer.lastActive = new Date();
+                    console.log(`💰 Scoreboard: ${scoreboardPlayer.name} now has ${scoreboardPlayer.coins} coins`);
+                } else {
+                    // Create scoreboard entry if it doesn't exist
+                    scoreboardPlayer = {
+                        id: data.playerId,
+                        name: player.name, // Use player's actual name
+                        coins: player.coins,
+                        lastActive: new Date()
+                    };
+                    room.scoreboard.set(data.playerId, scoreboardPlayer);
+                    console.log(`➕ Created new scoreboard entry for ${player.name}`);
+                }
+
+                // Broadcast updated scoreboard to THIS ROOM ONLY
+                updateRoomScoreboard(data.roomId);
+
+                // Broadcast coin collection to all players in the room
                 io.to(data.roomId).emit('coin-collected', {
                     playerId: data.playerId,
                     playerName: player.name,
@@ -252,18 +363,41 @@ io.on('connection', (socket) => {
                     playerName: player.name,
                     coins: player.coins
                 });
+
+                console.log(`💰 ${player.name} collected coin, now has ${player.coins} coins`);
             }
         }
     });
 
     // Start game
+    // In server.js - Fix the start-game handler
     socket.on('start-game', (roomId) => {
         const room = rooms.get(roomId);
         if (room) {
             room.gameStarted = true;
             room.coins = generateCoinsFromMap();
 
-            console.log(`🎮 Game started in room ${roomId} with ${room.players.length} players`);
+            // RESET ALL PLAYER COINS AND SCOREBOARD FOR NEW GAME
+            room.players.forEach(player => {
+                player.coins = 0;
+            });
+
+            // Reset the room scoreboard WITH PROPER NAMES
+            room.scoreboard.clear();
+            room.players.forEach(player => {
+                room.scoreboard.set(player.id, {
+                    id: player.id,
+                    name: player.name, // Use actual player name
+                    coins: 0,
+                    lastActive: new Date()
+                });
+            });
+
+            console.log(`🎮 Game started in room ${roomId} with ${room.players.length} players - scores reset`);
+            console.log(`👥 Players:`, room.players.map(p => p.name));
+
+            // Update scoreboard with reset scores
+            updateRoomScoreboard(roomId);
 
             // Tell ALL players to navigate to the game
             io.to(roomId).emit('navigate-to-game', {
@@ -273,7 +407,6 @@ io.on('connection', (socket) => {
             console.log(`📢 Sent navigate-to-game to ${room.players.length} players`);
         }
     });
-
     // Add periodic game state sync for large rooms
     setInterval(() => {
         rooms.forEach((room, roomId) => {
@@ -291,13 +424,37 @@ io.on('connection', (socket) => {
     }, 2000); // Sync every 2 seconds for large rooms
 
     // Quiz results
+    // In server.js - Fix the quiz-result handler
     socket.on('quiz-result', (data) => {
         const room = rooms.get(data.roomId);
         if (room) {
             const player = room.players.find(p => p.id === data.playerId);
             if (player) {
-                player.coins += data.isCorrect ? 1 : -1;
+                const coinChange = data.isCorrect ? 1 : -1;
+                player.coins += coinChange;
                 player.coins = Math.max(0, player.coins);
+
+                // UPDATE ROOM SCOREBOARD - FIXED: Ensure name is properly set
+                let scoreboardPlayer = room.scoreboard.get(data.playerId);
+                if (scoreboardPlayer) {
+                    // Update existing player - SYNC NAME FROM PLAYER OBJECT
+                    scoreboardPlayer.name = player.name; // CRITICAL: Sync the name
+                    scoreboardPlayer.coins = player.coins;
+                    scoreboardPlayer.lastActive = new Date();
+                    console.log(`❓ Quiz: ${scoreboardPlayer.name} ${data.isCorrect ? 'gained' : 'lost'} coin, now has ${scoreboardPlayer.coins} coins`);
+                } else {
+                    // Create scoreboard entry if it doesn't exist
+                    scoreboardPlayer = {
+                        id: data.playerId,
+                        name: player.name, // Use player's actual name
+                        coins: player.coins,
+                        lastActive: new Date()
+                    };
+                    room.scoreboard.set(data.playerId, scoreboardPlayer);
+                }
+
+                // Broadcast updated scoreboard to THIS ROOM ONLY
+                updateRoomScoreboard(data.roomId);
 
                 // Send coin update to all clients (especially host)
                 io.to(data.roomId).emit('player-coins-updated', {
@@ -309,6 +466,38 @@ io.on('connection', (socket) => {
 
                 console.log(`Player ${player.name} now has ${player.coins} coins`);
             }
+        }
+    });
+
+    // In server.js - Fix the request-scoreboard handler
+    socket.on('request-scoreboard', () => {
+        console.log(`📊 Scoreboard requested by ${socket.id}`);
+
+        // Find which room the player is in
+        let playerRoomId = null;
+        for (const [roomId, room] of rooms.entries()) {
+            if (room.players.some(p => p.id === socket.id)) {
+                playerRoomId = roomId;
+                break;
+            }
+        }
+
+        if (playerRoomId) {
+            const room = rooms.get(playerRoomId);
+
+            // DEBUG: Log the current state
+            console.log(`🔍 DEBUG for request-scoreboard in room ${playerRoomId}:`);
+            console.log(`- Players:`, room.players.map(p => ({ id: p.id, name: p.name, coins: p.coins })));
+            console.log(`- Scoreboard:`, Array.from(room.scoreboard.entries()).map(([id, data]) => ({ id, name: data.name, coins: data.coins })));
+
+            const playersArray = Array.from(room.scoreboard.values())
+                .filter(player => player && player.name) // Filter out invalid entries
+                .sort((a, b) => b.coins - a.coins)
+                .slice(0, 10);
+
+            socket.emit('scoreboard-update', playersArray);
+        } else {
+            socket.emit('scoreboard-update', []);
         }
     });
 
@@ -324,6 +513,38 @@ io.on('connection', (socket) => {
         }
     });
 
+
+    socket.on('player-died', (data) => {
+        const room = rooms.get(data.roomId);
+        if (room) {
+            const player = room.players.find(p => p.id === data.playerId);
+            if (player) {
+                console.log(`💀 Player ${player.name} died, resetting coins to 0`);
+
+                // Reset player coins
+                player.coins = 0;
+
+                // Update scoreboard to reflect the reset
+                const scoreboardPlayer = room.scoreboard.get(data.playerId);
+                if (scoreboardPlayer) {
+                    scoreboardPlayer.coins = 0; // Reset scoreboard coins to match player
+                    console.log(`📊 Scoreboard: ${scoreboardPlayer.name} coins reset to 0 after death`);
+                }
+
+                // Update scoreboard for everyone
+                updateRoomScoreboard(data.roomId);
+
+                // Notify about coin reset
+                io.to(data.roomId).emit('player-coins-updated', {
+                    playerId: data.playerId,
+                    playerName: player.name,
+                    coins: 0,
+                    reason: 'death'
+                });
+            }
+        }
+    });
+
     // Leave room
     socket.on('leave-game', (roomId) => {
         leaveRoom(socket, roomId);
@@ -331,15 +552,26 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
+
         // Clean up all rooms this user was in
         for (const [roomId, room] of rooms.entries()) {
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             if (playerIndex !== -1) {
-                leaveRoom(socket, roomId);
+                // Remove from players but keep in scoreboard (they can rejoin)
+                const player = room.players[playerIndex];
+                room.players.splice(playerIndex, 1);
+
+                console.log(`📊 Player ${player.name} disconnected from room ${roomId} but kept in scoreboard`);
+
+                // Update scoreboard to reflect player left
+                updateRoomScoreboard(roomId);
+
+                // Notify other players
+                socket.to(roomId).emit('player-left', socket.id);
+                io.to(roomId).emit('players-updated', room.players);
             }
         }
     });
-
 
     function leaveRoom(socket, roomId) {
         const room = rooms.get(roomId)
@@ -349,10 +581,14 @@ io.on('connection', (socket) => {
                 const player = room.players[playerIndex]
                 room.players.splice(playerIndex, 1)
 
+                // Player leaves but their score remains in the room scoreboard
+                console.log(`Player ${player.name} left room ${roomId} (score preserved)`);
+
                 socket.to(roomId).emit('player-left', socket.id)
                 io.to(roomId).emit('players-updated', room.players)
 
-                console.log(`Player ${player.name} left room ${roomId}`)
+                // Update scoreboard
+                updateRoomScoreboard(roomId);
 
                 // DON'T delete room immediately - wait a bit for reconnection
                 if (room.players.length === 0) {

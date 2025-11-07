@@ -7,6 +7,7 @@ import QuizPopup from '../Quiz/QuizPopup'
 import MultiplayerManager from './managers/MultiplayerManager'
 import PlayerStats from './PlayerStats' // Import the new component
 import { useSocket } from '../../context/SocketContext' // Import the socket context
+import Scoreboard from './Scoreboard'
 
 const Game = () => {
     const { roomId } = useParams()
@@ -19,7 +20,7 @@ const Game = () => {
         // Get player data from localStorage
         const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
         const { playerName, isHost, roomId: storedRoomId } = storedData;
-        
+
         console.log('🎮 Game component loading with stored data:', storedData);
 
         // Initialize multiplayer manager with the shared socket
@@ -73,17 +74,17 @@ const Game = () => {
         };
     }, [roomId, socket]); // Add socket to dependencies
 
-    
+
 
     const handleQuizAnswer = (isCorrect) => {
         if (window.quizManager) {
             window.quizManager.handleQuizAnswer(isCorrect);
         }
-        
+
         if (multiplayerManager) {
             multiplayerManager.sendQuizResult(isCorrect);
         }
-        
+
         setQuizData(null);
     }
 
@@ -108,17 +109,20 @@ const Game = () => {
         overflow: 'hidden'
     }
 
-     return (
+    return (
         <div className="game-wrapper" style={gameWrapperStyle}>
             {/* Player Stats Component */}
             <PlayerStats />
-            
-            <div 
-                id="game-container" 
-                ref={gameRef} 
+
+            {/* Scoreboard Component */}
+            <Scoreboard />
+
+            <div
+                id="game-container"
+                ref={gameRef}
                 style={gameContainerStyle}
             ></div>
-            
+
             <QuizPopup
                 isVisible={!!quizData}
                 question={quizData?.question}

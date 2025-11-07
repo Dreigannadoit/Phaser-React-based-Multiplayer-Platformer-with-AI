@@ -23,9 +23,9 @@ export default class PlatformerScene extends Phaser.Scene {
 
         // Game state
         this.score = 0;
-        this.lives = 3;
+        this.lives = 5;
         this.coinsCollected = 0;
-        this.lastEmittedState = { lives: 3, coins: 0, playerName: 'Player' };
+        this.lastEmittedState = { lives: 5, coins: 0, playerName: 'Player' };
 
         // Multiplayer
         this.roomCoins = new Map();
@@ -345,6 +345,8 @@ export default class PlatformerScene extends Phaser.Scene {
         this.uiManager.updateHUDPosition();
         this.updateParallaxBackgrounds();
 
+        // this.debugPlayerNames();
+
         // NEW: Check for death and start respawn process
         if (this.lives <= 0 && !this.isRespawning) {
             this.handlePlayerDeath();
@@ -362,6 +364,14 @@ export default class PlatformerScene extends Phaser.Scene {
         if (localPlayer && localPlayer.getSprite()) {
             localPlayer.getSprite().setVisible(false);
             localPlayer.getSprite().body.enable = false; // Disable physics
+        }
+
+        // Reset coins
+        this.coinsCollected = 0;
+
+        // Send death event to server to sync scoreboard
+        if (this.isMultiplayer && window.multiplayerManager) {
+            window.multiplayerManager.sendPlayerDeath();
         }
 
         // Create death effect
@@ -473,9 +483,15 @@ export default class PlatformerScene extends Phaser.Scene {
         }
 
         // Reset lives and respawn state
-        this.lives = 3;
+        this.lives = 5;
         this.coinsCollected = 0;
         this.isRespawning = false;
+
+        // Send death event to server if not already sent
+        if (this.isMultiplayer && window.multiplayerManager) {
+            window.multiplayerManager.sendPlayerDeath();
+        }
+
 
         // GET SPAWN POSITION FROM MAP - UPDATED THIS PART
         const spawnPosition = this.mapManager.getSpawnPosition();
@@ -515,10 +531,13 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     emitGameStateUpdate() {
+        const localPlayer = this.playerManager.getLocalPlayer();
+        const playerName = localPlayer?.playerData?.name || 'Player';
+
         const currentState = {
             lives: this.lives,
             coins: this.coinsCollected,
-            playerName: this.playerManager.getLocalPlayer()?.playerData?.name || 'Player'
+            playerName: playerName // Use the actual player name from player data
         };
 
         if (JSON.stringify(currentState) !== JSON.stringify(this.lastEmittedState)) {
@@ -595,7 +614,6 @@ export default class PlatformerScene extends Phaser.Scene {
     processQuizResult(isCorrect, coin) {
         if (isCorrect) {
             // Correct answer - add coin
-            this.coinsCollected++;
             this.score += coin.scoreValue;
         } else {
             // Incorrect answer - remove coin (minimum 0)
@@ -626,9 +644,22 @@ export default class PlatformerScene extends Phaser.Scene {
         });
     }
 
+    debugPlayerNames() {
+        console.log('🎯 CURRENT PLAYER NAMES DEBUG:');
+        console.log(`- Local Player: ${this.playerManager.getLocalPlayer()?.playerData?.name || 'Unknown'}`);
+
+        const otherPlayers = this.playerManager.getOtherPlayers();
+        console.log(`- Other Players (${otherPlayers.size}):`);
+
+        otherPlayers.forEach((player, id) => {
+            console.log(`  - ${id}: "${player.playerData.name}"`);
+        });
+    }
+
+
     resetGameState() {
         this.score = 0;
-        this.lives = 3;
+        this.lives = 5;
         this.coinsCollected = 0;
 
         // NEW: Reset respawn system

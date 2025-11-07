@@ -72,6 +72,9 @@ the_notebook/
 │   └──  src/
 │         └── components/
 │                 └── Game/      
+│                 └── Home/   
+│                 └── Quiz/   
+│                 └── Room/   
 └──  server/               
         └── server.js              
 ```

@@ -69,6 +69,7 @@ class MultiplayerManager {
         this.joinGame();
     }
 
+
     joinGame() {
         if (this.hasJoined) {
             console.log('⚠️ Already joined game, skipping re-join');
@@ -77,14 +78,26 @@ class MultiplayerManager {
 
         console.log(`🎮 Joining game as ${this.playerName} (Host: ${this.isHost}) in room ${this.roomId}`);
 
-        // Join game with player info
+        const playerData = JSON.parse(localStorage.getItem('playerData') || '{}');
+
+        // Join game with the original player name
         this.socket.emit('join-game', {
             roomId: this.roomId,
-            playerName: this.playerName,
+            playerName: playerData.playerName, // Use original name
             isHost: this.isHost
         });
 
         this.hasJoined = true;
+    }
+
+    sendPlayerDeath() {
+        if (this.socket && this.playerId) {
+            console.log('💀 Sending player death to server');
+            this.socket.emit('player-died', {
+                roomId: this.roomId,
+                playerId: this.playerId
+            });
+        }
     }
 
     setupSocketListeners() {
@@ -148,14 +161,25 @@ class MultiplayerManager {
             setTimeout(setupPlayer, 100);
         });
 
+        this.socket.on('scoreboard-update', (players) => {
+            console.log('📊 Scoreboard data received:', players);
+        });
+
         this.socket.on('player-moved', (data) => {
             if (window.gameScene && data.playerId !== this.playerId) {
-                console.log(`📥 Received move for player ${data.playerId}:`, {
+                console.log(`📥 Received move for player ${data.playerName || data.playerId}:`, {
                     x: data.position.x,
                     y: data.position.y,
                     animation: data.animation
                 });
-                window.gameScene.updateOtherPlayer(data);
+                window.gameScene.updateOtherPlayer({
+                    playerId: data.playerId,
+                    playerName: data.playerName, // Pass the name
+                    position: data.position,
+                    velocity: data.velocity,
+                    animation: data.animation,
+                    timestamp: data.timestamp
+                });
             }
         });
         // Add periodic position sync request
@@ -183,9 +207,11 @@ class MultiplayerManager {
             if (window.gameScene && player.id !== this.playerId) {
                 window.gameScene.updateOtherPlayer({
                     playerId: player.id,
+                    playerName: player.name, // Pass the name
                     position: player.position,
                     velocity: player.velocity,
-                    animation: player.animation
+                    animation: player.animation,
+                    timestamp: Date.now()
                 });
             }
         });
@@ -229,6 +255,14 @@ class MultiplayerManager {
             // You could add visual effects or sounds here
         });
     }
+
+    requestScoreboard() {
+        if (this.socket && this.socket.connected) {
+            console.log('📊 Requesting scoreboard data...');
+            this.socket.emit('request-scoreboard');
+        }
+    }
+
 
     sendPlayerMovement(position, velocity, animation) {
         // SAFETY CHECK: Ensure we have valid data before sending

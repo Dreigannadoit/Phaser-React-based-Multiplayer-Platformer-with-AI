@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 
 const PlayerStats = () => {
-    const [lives, setLives] = useState(3);
+    const [lives, setLives] = useState(5);
     const [coins, setCoins] = useState(0);
     const [playerName, setPlayerName] = useState('Player');
     const [isVisible, setIsVisible] = useState(true);
@@ -145,7 +145,7 @@ const PlayerStats = () => {
             <div style={statRowStyle}>
                 <span style={labelStyle}>LIVES:</span>
                 <div style={livesContainerStyle}>
-                    {Array.from({ length: 3 }, (_, index) => (
+                    {Array.from({ length: 5 }, (_, index) => (
                         <span 
                             key={index} 
                             style={{

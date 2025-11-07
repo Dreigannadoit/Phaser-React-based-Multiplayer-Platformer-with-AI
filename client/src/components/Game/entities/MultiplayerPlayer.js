@@ -22,7 +22,6 @@ export class MultiplayerPlayer {
     }
 
     // client/src/components/Game/MultiplayerPlayer.js - Update create method
-    // In MultiplayerPlayer.js - update the create method
     create() {
         console.log(`🎮 Creating player: ${this.playerData.name} at (${this.playerData.position.x}, ${this.playerData.position.y})`);
 
