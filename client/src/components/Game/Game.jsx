@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom'
 import Phaser from 'phaser'
 import PlatformerScene from './PlatformerScene'
 import QuizPopup from '../Quiz/QuizPopup'
-import MultiplayerManager from './MultiplayerManager'
+import MultiplayerManager from './managers/MultiplayerManager'
 import PlayerStats from './PlayerStats' // Import the new component
 import { useSocket } from '../../context/SocketContext' // Import the socket context
 

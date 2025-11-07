@@ -1,5 +1,5 @@
-import { MultiplayerPlayer } from "./MultiplayerPlayer";
-import { Player } from "./Player";
+import { MultiplayerPlayer } from "../entities/MultiplayerPlayer";
+import { Player } from "../entities/Player";
 
 // client/src/components/Game/PlayerManager.js
 export class PlayerManager {

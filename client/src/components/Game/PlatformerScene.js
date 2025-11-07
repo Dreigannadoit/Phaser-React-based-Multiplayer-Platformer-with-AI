@@ -1,13 +1,13 @@
 // client/src/components/Game/PlatformerScene.js
 import Phaser from "phaser";
-import { MapManager } from "./MapManager";
-import { Player } from "./Player";
-import { MultiplayerPlayer } from "./MultiplayerPlayer";
-import { QuizManager } from "./QuizManager";
-import { CollisionManager } from "./CollisionManager";
-import { PlayerManager } from "./PlayerManager";
-import { NetworkManager } from "./NetworkManager";
-import { UIManager } from "./UIManager";
+import { MapManager } from "./managers/MapManager";
+import { Player } from "./entities/Player";
+import { MultiplayerPlayer } from "./entities/MultiplayerPlayer";
+import { QuizManager } from "./managers/QuizManager";
+import { CollisionManager } from "./managers/CollisionManager";
+import { PlayerManager } from "./managers/PlayerManager";
+import { NetworkManager } from "./managers/NetworkManager";
+import { UIManager } from "./managers/UIManager";
 
 export default class PlatformerScene extends Phaser.Scene {
     constructor() {
