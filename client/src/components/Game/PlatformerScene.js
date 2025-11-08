@@ -1,4 +1,3 @@
-// client/src/components/Game/PlatformerScene.js
 import Phaser from "phaser";
 import { MapManager } from "./managers/MapManager";
 import { Player } from "./entities/Player";
@@ -33,7 +32,7 @@ export default class PlatformerScene extends Phaser.Scene {
         this.isPlayerReady = false;
 
         // Camera settings
-        this.normalZoom = 2;
+        this.normalZoom = 3.5;
         this.quizZoom = 1.7;
         this.cameraZoom = this.normalZoom;
 
@@ -70,11 +69,13 @@ export default class PlatformerScene extends Phaser.Scene {
 
         // Fallback: create colored placeholder backgrounds if images don't exist
         if (!this.textures.exists("parallax_background_1")) {
-            this.createParallaxPlaceholder("parallax_background_1", 0x1a237e); // Dark blue
+            this.load.image("parallax_background_1", "/assets/background_2.png");
         }
+
         if (!this.textures.exists("parallax_background_2")) {
-            this.createParallaxPlaceholder("parallax_background_2", 0x283593); // Medium blue
+            this.load.image("parallax_background_2", "/assets/background_3.png");
         }
+
     }
 
     createParallaxPlaceholder(textureKey, color) {
@@ -198,7 +199,7 @@ export default class PlatformerScene extends Phaser.Scene {
         // Set up camera
         this.cameras.main.setBounds(0, 0, mapDimensions.width, mapDimensions.height);
         this.cameras.main.setZoom(this.normalZoom);
-        this.cameras.main.setLerp(0.1, 0.1);
+        this.cameras.main.setLerp(0.5, 0.6);
 
         // Add debug key for testing
         this.input.keyboard.on('keydown-D', () => {
@@ -234,34 +235,51 @@ export default class PlatformerScene extends Phaser.Scene {
             {
                 key: "parallax_background_1",
                 speed: 0.1,
-                scale: 1.0,
                 alpha: 1.0,
                 depth: -100,
             },
             {
                 key: "parallax_background_2",
                 speed: 0.3,
-                scale: 1.0,
                 alpha: 0.9,
                 depth: -50,
             },
         ];
 
-        const gameWidth = 800;
-        const gameHeight = 600;
+        // Get screen dimensions
+        const screenWidth = this.cameras.main.width;
+        const screenHeight = this.cameras.main.height;
+
+        console.log(`🖥️ Creating parallax backgrounds for screen: ${screenWidth}x${screenHeight}`);
 
         layers.forEach((layer) => {
-            // Use TileSprite for seamless scrolling backgrounds
-            const bg = this.add.tileSprite(0, 0, gameWidth, gameHeight, layer.key);
-            bg.setOrigin(0, 0);
-            bg.setScrollFactor(0);
+            // Use REGULAR Sprite instead of TileSprite
+            const bg = this.add.sprite(0, 0, layer.key);
+
+            // Set origin to top-left
+            bg.setOrigin(0, -0.2);
+
+            // Set scroll factor for parallax effect
+            bg.setScrollFactor(layer.speed);
+
+            // Set depth
             bg.setDepth(layer.depth);
+
+            // Set alpha
             bg.setAlpha(layer.alpha);
+
+            // Scale the sprite to fill the entire screen
+            bg.setDisplaySize(screenWidth, screenHeight);
+
+            // Position at top-left corner
+            bg.setPosition(0, 0);
 
             this.backgrounds.push({
                 sprite: bg,
                 speed: layer.speed,
             });
+
+            console.log(`🎨 Created parallax layer: ${layer.key} (scaled to ${screenWidth}x${screenHeight})`);
         });
     }
 

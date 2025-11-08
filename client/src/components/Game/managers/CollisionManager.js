@@ -56,6 +56,12 @@ export class CollisionManager {
     collectCoin(player, coin) {
         console.log(`💰 Coin collected! Position: (${coin.x}, ${coin.y})`);
 
+        // Disable the coin immediately to prevent multiple collections
+        if (coin.active) {
+            coin.disableBody(true, true);
+            console.log(`🪙 Coin disabled: ${coin.x}, ${coin.y}`);
+        }
+
         if (this.scene.isMultiplayer) {
             this.handleMultiplayerCoin(player, coin);
         } else {
@@ -71,9 +77,7 @@ export class CollisionManager {
             // Notify server about coin collection
             window.multiplayerManager.sendCoinCollection(coinId);
 
-            // Update local coins immediately for better UX
-            this.scene.coinsCollected++;
-            console.log(`📈 Coins collected: ${this.scene.coinsCollected}`);
+            console.log(`🪙 Sent coin collection to server, waiting for update...`);
 
             // Show quiz for this player only
             await this.scene.handleMultiplayerCoin(coin);
@@ -122,7 +126,7 @@ export class CollisionManager {
             // PlatformerScene will handle the respawn process in update()
         }
     }
-    
+
     // Helper method to get player instance from sprite
     getPlayerFromSprite(sprite) {
         const localPlayer = this.scene.playerManager.getLocalPlayer();

@@ -47,7 +47,8 @@ const Game = () => {
             scene: [PlatformerScene],
             render: {
                 antialias: false,
-                pixelArt: true
+                pixelArt: true,          
+                roundPixels: true    
             },
             scale: {
                 mode: Phaser.Scale.FIT,

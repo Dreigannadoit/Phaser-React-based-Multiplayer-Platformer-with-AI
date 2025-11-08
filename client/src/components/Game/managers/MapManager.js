@@ -13,7 +13,7 @@ export class MapManager {
         const mapsPath = '/assets/maps/';
         const spritesPath = '/assets/sprites/';
 
-        this.scene.load.tilemapTiledJSON('map', `${mapsPath}map_2.json`);
+        this.scene.load.tilemapTiledJSON('map', `${mapsPath}map_3.json`);
         this.scene.load.image('tiles', `${spritesPath}world_tileset.png`);
     }
 
@@ -28,8 +28,8 @@ export class MapManager {
         this.groundLayer = map.createLayer('Ground', tileset, 0, 0);
 
         // Set up physics - ORIGINAL map size
-        const width = 60 * 16; // Original width
-        const height = 30 * 16; // Original height
+        const width = 120 * 16; // Original width
+        const height = 80 * 16; // Original height
         this.scene.physics.world.setBounds(0, 0, width, height);
 
         // Create collision objects, coins, spikes - NO SCALING
