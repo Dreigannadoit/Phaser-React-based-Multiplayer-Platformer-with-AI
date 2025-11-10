@@ -1,4 +1,3 @@
-// client/src/components/Game/PlayerStats.jsx
 import React, { useState, useEffect } from 'react';
 
 const PlayerStats = () => {

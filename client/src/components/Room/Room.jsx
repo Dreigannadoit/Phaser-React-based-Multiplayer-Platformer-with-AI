@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { useSocket } from '../../context/SocketContext' 
+import { useSocket } from '../../context/SocketContext'
 
 const Room = () => {
     const { roomId } = useParams()
@@ -10,9 +10,38 @@ const Room = () => {
     const [isHost, setIsHost] = useState(false)
     const [playerName, setPlayerName] = useState('')
     const [error, setError] = useState('')
-    const { socket } = useSocket() // Use shared socket
+
+    const { socket } = useSocket();
+    const [gameQuestions, setGameQuestions] = useState([]);
+    const [hasEnoughQuestions, setHasEnoughQuestions] = useState(false);
 
     useEffect(() => {
+        // Load questions from localStorage on component mount
+        const loadQuestions = () => {
+            try {
+                // Try room-specific questions first, then fallback to general
+                const roomQuestionsKey = `gameQuestions_${roomId}`;
+                const storedQuestions = localStorage.getItem(roomQuestionsKey) || localStorage.getItem('gameQuestions');
+
+                if (storedQuestions) {
+                    const questions = JSON.parse(storedQuestions);
+                    setGameQuestions(questions);
+                    setHasEnoughQuestions(questions.length >= 5);
+                }
+            } catch (error) {
+                console.error('Error loading questions:', error);
+            }
+        };
+
+        loadQuestions();
+
+        // Check for success message from PDF upload
+        if (location.state?.questionsGenerated) {
+            alert(`Successfully generated ${location.state.questionCount} questions!`);
+            // Reload questions to update the display
+            loadQuestions();
+        }
+
         if (!socket) {
             console.log(' Waiting for socket connection...')
             return
@@ -94,14 +123,14 @@ const Room = () => {
         // Listen for navigation to game
         socket.on('navigate-to-game', (data) => {
             console.log('Navigating to game by server command')
-            
+
             // Store player data for the game
             localStorage.setItem('playerData', JSON.stringify({
                 playerName: decodedName,
                 isHost: host,
                 roomId: roomId
             }))
-            
+
             navigate(`/game/${roomId}`)
         })
 
@@ -139,26 +168,49 @@ const Room = () => {
                 socket.off('connect')
                 socket.off('disconnect')
                 socket.off('connect_error')
-                
-                // socket.emit('leave-game', roomId)
             }
         }
-    }, [socket, roomId, navigate, location.search])
+    }, [socket, roomId, navigate, location.search, location.state])
+
+    const navigateToPDFUpload = () => {
+        navigate(`/pdf-upload/${roomId}`, {
+            state: {
+                roomId: roomId,
+                playerName: playerName
+            }
+        });
+    };
+    const clearQuestions = () => {
+        setGameQuestions([]);
+        setHasEnoughQuestions(false);
+        localStorage.removeItem('gameQuestions');
+    };
 
     const handleStartGame = () => {
+        if (!hasEnoughQuestions && isHost) {
+            alert('Please add at least 5 questions before starting the game! Use the "Generate Questions from PDF" button.');
+            return;
+        }
+
         if (socket && isHost) {
             console.log('Starting game for room:', roomId)
-            
+
             // Store player data for the game
             localStorage.setItem('playerData', JSON.stringify({
                 playerName: playerName,
                 isHost: isHost,
                 roomId: roomId
             }))
-            
+
+            // Clear any previous game state
+            localStorage.removeItem('gameState');
+            localStorage.removeItem('playerProgress');
+
+            console.log(`🧹 Cleared previous game state for room: ${roomId}`);
+
             // Navigate host to game
             navigate(`/game/${roomId}`)
-            
+
             // Tell server to start game
             socket.emit('start-game', roomId)
         }
@@ -214,29 +266,89 @@ const Room = () => {
                     <div>
                         <h1>Room: {roomId}</h1>
                         <p className="player-info">
-                            {isHost ? ' Host' : '👤 Player'}: {playerName}
+                            {isHost ? '👑 Host' : '👤 Player'}: {playerName}
                             {currentPlayer && ` (ID: ${currentPlayer.id.substring(0, 8)}...)`}
                         </p>
                         <p className="room-status">
                             {players.length} player{players.length !== 1 ? 's' : ''} connected
+                            {isHost && ` | Questions: ${gameQuestions.length}/5`}
                         </p>
                     </div>
                     <div className="header-actions">
                         {isHost ? (
                             <button onClick={copyHostLink} className="copy-button">
-                                 Copy Host Link
+                                📋 Copy Host Link
                             </button>
                         ) : (
                             <button onClick={copyRoomLink} className="copy-button">
-                                 Copy Player Link
+                                📋 Copy Player Link
                             </button>
                         )}
                         <button onClick={leaveRoom} className="leave-button">
-                             Leave
+                            🚪 Leave
                         </button>
                     </div>
                 </div>
 
+                {/* Questions Section - Only for Host */}
+                {isHost && (
+                    <div className="questions-section">
+                        <div className="questions-header">
+                            <h2>Game Questions</h2>
+                            <div className="questions-actions">
+                                <button
+                                    onClick={navigateToPDFUpload}
+                                    className="pdf-button"
+                                >
+                                    📄 Generate Questions from PDF
+                                </button>
+                                {gameQuestions.length > 0 && (
+                                    <div className="questions-status">
+                                        <span className="questions-count">
+                                            ✅ {gameQuestions.length} questions ready
+                                        </span>
+                                        <button onClick={clearQuestions} className="clear-questions-button">
+                                            🗑️ Clear
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {gameQuestions.length > 0 ? (
+                            <div className="questions-preview">
+                                <h4>Sample Questions:</h4>
+                                {gameQuestions.slice(0, 3).map((q, index) => (
+                                    <div key={index} className="question-preview">
+                                        <strong>Q{index + 1}:</strong> {q.question}
+                                        <div className="options-preview">
+                                            {q.options.map((opt, optIndex) => (
+                                                <span
+                                                    key={optIndex}
+                                                    className={`option ${optIndex === q.correct ? 'correct' : ''}`}
+                                                >
+                                                    {String.fromCharCode(65 + optIndex)}. {opt}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                                {gameQuestions.length > 3 && (
+                                    <p className="more-questions">
+                                        ... and {gameQuestions.length - 3} more questions
+                                    </p>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="no-questions">
+                                <p>No questions added yet. Click "Generate Questions from PDF" to create questions from PDF files.</p>
+                                <p><small>You need at least 5 questions to start the game.</small></p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Rest of the Room.jsx code remains the same */}
                 <div className="players-section">
                     <h2>Players in Room ({players.length})</h2>
                     {players.length === 0 ? (
@@ -248,7 +360,7 @@ const Room = () => {
                             {players.map((player, index) => (
                                 <div key={player.id} className={`player-card ${player.id === socket?.id ? 'current-player' : ''}`}>
                                     <span className="player-avatar">
-                                        {player.isHost ? '' : ''}
+                                        {player.isHost ? '👑' : '👤'}
                                     </span>
                                     <div className="player-info">
                                         <span className="player-name">
@@ -262,7 +374,7 @@ const Room = () => {
                                         </span>
                                     </div>
                                     <span className="player-status">
-                                        {player.ready ? ' Ready' : ' Waiting'}
+                                        {player.ready ? '✅ Ready' : '⏳ Waiting'}
                                     </span>
                                 </div>
                             ))}
@@ -274,15 +386,17 @@ const Room = () => {
                     <div className="host-controls">
                         <button
                             onClick={handleStartGame}
-                            disabled={players.length < 1}
-                            className={`start-button ${players.length < 1 ? 'disabled' : ''}`}
+                            disabled={players.length < 1 || !hasEnoughQuestions}
+                            className={`start-button ${players.length < 1 || !hasEnoughQuestions ? 'disabled' : ''}`}
                         >
-                             Start Game ({players.length} player{players.length !== 1 ? 's' : ''} ready)
+                            {!hasEnoughQuestions ? '❌ Need 5+ Questions' : `🎮 Start Game (${players.length} player${players.length !== 1 ? 's' : ''} ready)`}
                         </button>
                         <p className="host-instructions">
-                            {players.length < 2
-                                ? 'You can start the game with just yourself for testing, but 2+ players recommended for multiplayer.'
-                                : 'Ready to start the game! Players will be teleported to the game world.'}
+                            {!hasEnoughQuestions
+                                ? 'You need at least 5 questions to start the game. Use the "Generate Questions from PDF" button above.'
+                                : players.length < 2
+                                    ? 'You can start the game with just yourself for testing, but 2+ players recommended for multiplayer.'
+                                    : 'Ready to start the game! Players will be teleported to the game world.'}
                         </p>
                     </div>
                 )}
@@ -293,7 +407,7 @@ const Room = () => {
                         <p>Waiting for host to start the game...</p>
                         <div className="player-ready">
                             <button onClick={handleReadyToggle} className="ready-button">
-                                {currentPlayer.ready ? 'Ready!' : 'Mark as Ready'}
+                                {currentPlayer.ready ? '✅ Ready!' : '🎯 Mark as Ready'}
                             </button>
                         </div>
                         <div className="loading-spinner"></div>
@@ -314,6 +428,7 @@ const Room = () => {
                     Players in state: {players.length}<br />
                     Is Host: {isHost ? 'Yes' : 'No'}<br />
                     Room ID: {roomId}<br />
+                    Questions: {gameQuestions.length}<br />
                     Socket Connected: {socket?.connected ? 'Yes' : 'No'}
                 </div>
             </div>

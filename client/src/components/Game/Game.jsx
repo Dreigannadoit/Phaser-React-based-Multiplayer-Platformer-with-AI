@@ -47,8 +47,8 @@ const Game = () => {
             scene: [PlatformerScene],
             render: {
                 antialias: false,
-                pixelArt: true,          
-                roundPixels: true    
+                pixelArt: true,
+                roundPixels: true
             },
             scale: {
                 mode: Phaser.Scale.FIT,
@@ -76,6 +76,32 @@ const Game = () => {
     }, [roomId, socket]); // Add socket to dependencies
 
 
+    useEffect(() => {
+        // Load questions and pass to quiz manager
+        const loadQuestions = () => {
+            try {
+                // Get roomId from params or stored data
+                const currentRoomId = roomId || JSON.parse(localStorage.getItem('playerData') || '{}').roomId;
+
+                if (currentRoomId) {
+                    // Try room-specific questions first
+                    const roomQuestionsKey = `gameQuestions_${currentRoomId}`;
+                    const storedQuestions = localStorage.getItem(roomQuestionsKey) || localStorage.getItem('gameQuestions');
+
+                    if (storedQuestions && window.quizManager) {
+                        const questions = JSON.parse(storedQuestions);
+                        window.quizManager.updateQuestions(questions);
+                        console.log(`🎯 Loaded ${questions.length} questions for room ${currentRoomId}`);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading questions into game:', error);
+            }
+        };
+
+        // Wait for game to be ready
+        setTimeout(loadQuestions, 1000);
+    }, [roomId]);
 
     const handleQuizAnswer = (isCorrect) => {
         if (window.quizManager) {

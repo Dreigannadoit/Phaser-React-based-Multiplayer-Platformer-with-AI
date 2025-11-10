@@ -109,41 +109,20 @@ export default class PlatformerScene extends Phaser.Scene {
 
     loadPlayerAnimations() {
         // Use absolute paths from the public folder or correct relative paths
-        const basePath = '/assets/sprites/player/';
+        const basePath = '/assets/sprites/nick/';
 
         // Load idle animation frames
         this.load.image('player_idle_1', `${basePath}idle/player_idle_1.png`);
         this.load.image('player_idle_2', `${basePath}idle/player_idle_2.png`);
-        this.load.image('player_idle_3', `${basePath}idle/player_idle_3.png`);
-        this.load.image('player_idle_4', `${basePath}idle/player_idle_4.png`);
 
         // Load run animation frames
         this.load.image('player_run_1', `${basePath}run/player_run_1.png`);
         this.load.image('player_run_2', `${basePath}run/player_run_2.png`);
         this.load.image('player_run_3', `${basePath}run/player_run_3.png`);
         this.load.image('player_run_4', `${basePath}run/player_run_4.png`);
-        this.load.image('player_run_5', `${basePath}run/player_run_5.png`);
-        this.load.image('player_run_6', `${basePath}run/player_run_6.png`);
-        this.load.image('player_run_7', `${basePath}run/player_run_7.png`);
-        this.load.image('player_run_8', `${basePath}run/player_run_8.png`);
-        this.load.image('player_run_9', `${basePath}run/player_run_9.png`);
-        this.load.image('player_run_10', `${basePath}run/player_run_10.png`);
-        this.load.image('player_run_11', `${basePath}run/player_run_11.png`);
-        this.load.image('player_run_12', `${basePath}run/player_run_12.png`);
-        this.load.image('player_run_13', `${basePath}run/player_run_13.png`);
-        this.load.image('player_run_14', `${basePath}run/player_run_14.png`);
-        this.load.image('player_run_15', `${basePath}run/player_run_15.png`);
-        this.load.image('player_run_16', `${basePath}run/player_run_16.png`);
-
+        
         // Load jump animation frames
         this.load.image('player_jump_1', `${basePath}jump/player_jump_1.png`);
-        this.load.image('player_jump_2', `${basePath}jump/player_jump_2.png`);
-        this.load.image('player_jump_3', `${basePath}jump/player_jump_3.png`);
-        this.load.image('player_jump_4', `${basePath}jump/player_jump_4.png`);
-        this.load.image('player_jump_5', `${basePath}jump/player_jump_5.png`);
-        this.load.image('player_jump_6', `${basePath}jump/player_jump_6.png`);
-        this.load.image('player_jump_7', `${basePath}jump/player_jump_7.png`);
-        this.load.image('player_jump_8', `${basePath}jump/player_jump_8.png`);
     }
 
     createTextures() {

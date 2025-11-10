@@ -6,7 +6,24 @@ export class QuizManager {
         this.optionButtons = [];
         this.currentQuestion = null;
         
-        this.questions = [
+        // Load questions from localStorage or use defaults
+        this.questions = this.loadQuestions();
+    }
+
+    loadQuestions() {
+        try {
+            const storedQuestions = localStorage.getItem('gameQuestions');
+            if (storedQuestions) {
+                const questions = JSON.parse(storedQuestions);
+                console.log(`📝 Loaded ${questions.length} questions from storage`);
+                return questions;
+            }
+        } catch (error) {
+            console.error('Error loading questions:', error);
+        }
+
+        // Fallback to default questions
+        return [
             {
                 question: "What is 2 + 2?",
                 options: ["3", "4", "5", "6"],
@@ -16,33 +33,32 @@ export class QuizManager {
                 question: "What is the capital of France?",
                 options: ["London", "Berlin", "Paris", "Madrid"],
                 correct: 2
-            },
-            {
-                question: "Which language runs in a web browser?",
-                options: ["Java", "C", "Python", "JavaScript"],
-                correct: 3
             }
         ];
     }
 
     preload() {
         // No need to load graphics assets anymore
-        // this.scene.load.audio('quiz_correct', 'src/assets/sounds/correct.wav');
-        // this.scene.load.audio('quiz_incorrect', 'src/assets/sounds/incorrect.wav');
-        // this.scene.load.audio('quiz_show', 'src/assets/sounds/quiz_show.wav');
     }
 
     create() {
         // No Phaser UI creation needed
     }
 
-   showQuiz() {
+    showQuiz() {
         this.quizActive = true;
         
         // Pause game physics
         this.scene.physics.pause();
         
-        // Get random question
+        // Get random question from the loaded questions
+        if (this.questions.length === 0) {
+            console.warn('No questions available!');
+            this.quizActive = false;
+            this.scene.physics.resume();
+            return Promise.resolve(true); // Default to correct if no questions
+        }
+        
         this.currentQuestion = Phaser.Math.RND.pick(this.questions);
         
         // Dispatch custom event to show React quiz
@@ -68,13 +84,6 @@ export class QuizManager {
         
         // Resume game physics
         this.scene.physics.resume();
-        
-        // Play appropriate sound
-        if (isCorrect && this.scene.sound.get('quiz_correct')) {
-            this.scene.sound.play('quiz_correct');
-        } else if (!isCorrect && this.scene.sound.get('quiz_incorrect')) {
-            this.scene.sound.play('quiz_incorrect');
-        }
     }
 
     isQuizActive() {
@@ -87,5 +96,11 @@ export class QuizManager {
 
     getQuestionCount() {
         return this.questions.length;
+    }
+
+    // Method to update questions dynamically
+    updateQuestions(newQuestions) {
+        this.questions = newQuestions;
+        console.log(`🔄 Updated QuizManager with ${newQuestions.length} questions`);
     }
 }

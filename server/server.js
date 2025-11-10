@@ -99,6 +99,9 @@ io.on('connection', (socket) => {
                 scoreboard: new Map()
             });
             console.log(`✅ Room ${roomId} created by host`);
+
+            // Clear any previous questions when creating new room
+            console.log(`🧹 Server: New room ${roomId} created - previous questions should be cleared`);
         }
 
         const room = rooms.get(roomId);
