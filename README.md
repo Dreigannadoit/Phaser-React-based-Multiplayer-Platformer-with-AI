@@ -58,12 +58,14 @@ Transforms learning into an engaging adventure by:
 ## Installation
 1. Clone the repository
 2. Navigate to the client directory
-3. Install dependencies: `npm install`
-4. Start the development server: `npm run dev`
-5. Open your browser to `http://localhost:3000`
-6. To deploy the multiplayer server go to the server directory
-7. Install dependencies: `npm install`
-8. Start the development server: `node server.js`
+3. Install dependencies: `npm install --force`
+4. Install phaser: `npm install phaser --force`
+   Note: Need to use force because version of pdf-processing dependency is not good.
+6. Start the development server: `npm run dev`
+7. Open your browser to `http://localhost:3000`
+8. To deploy the multiplayer server go to the server directory
+9. Install dependencies: `npm install`
+10. Start the development server: `node server.js`
 
 ## Project Structure
 ```
@@ -74,6 +76,7 @@ the_notebook/
 │                 └── Game/      
 │                 └── Home/   
 │                 └── Quiz/   
+│                 └── PDF/   
 │                 └── Room/   
 └──  server/               
         └── server.js              
@@ -88,4 +91,4 @@ the_notebook/
 - Phaser 3 for the powerful game framework
 - Tiled for excellent map editing capabilities
 - Socket.io for seamless real-time communication
-T- he educational gaming community for inspiration
+- The educational gaming community for inspiration
