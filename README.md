@@ -88,4 +88,4 @@ the_notebook/
 - Phaser 3 for the powerful game framework
 - Tiled for excellent map editing capabilities
 - Socket.io for seamless real-time communication
-T- he educational gaming community for inspiration
+- The educational gaming community for inspiration
