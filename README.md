@@ -76,6 +76,7 @@ the_notebook/
 │                 └── Game/      
 │                 └── Home/   
 │                 └── Quiz/   
+│                 └── PDF/   
 │                 └── Room/   
 └──  server/               
         └── server.js              
