@@ -9,7 +9,7 @@ const server = http.createServer(app);
 // Configure CORS for your Vite dev server (usually localhost:5173 or 3000)
 const io = socketIo(server, {
     cors: {
-        origin: ["http://localhost:5173", "http://localhost:3000"], // Vite dev servers
+        origin: ["http://localhost:5173", "http://localhost:3000"],
         methods: ["GET", "POST"],
         credentials: true
     }

@@ -18,6 +18,11 @@ const PDFUpload = () => {
     const [generatedQuestions, setGeneratedQuestions] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [uploadError, setUploadError] = useState('');
+    const [showQuestionEditor, setShowQuestionEditor] = useState(false);
+    const [editingQuestion, setEditingQuestion] = useState(null);
+    const [newQuestion, setNewQuestion] = useState({ question: '', options: ['', '', '', ''], correct: 0 });
+    const [questionCount, setQuestionCount] = useState(10); // Default to 10 questions
+    
     const fileInputRef = useRef(null);
     const dropAreaRef = useRef(null);
 
@@ -34,7 +39,7 @@ const PDFUpload = () => {
         navigate(`/room/${roomId}?playerName=${encodedName}&isHost=true`);
     };
 
-    // Improved file handling with drag and drop
+    // File handling functions
     const handleFileSelect = (files) => {
         const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
 
@@ -120,8 +125,7 @@ const PDFUpload = () => {
                     console.log(`Extracting text from PDF: ${file.name}`);
                     const typedArray = new Uint8Array(fileReader.result);
 
-                    // Check file size
-                    if (typedArray.length > 10 * 1024 * 1024) { // 10MB limit
+                    if (typedArray.length > 10 * 1024 * 1024) {
                         reject(new Error('PDF file too large. Maximum size is 10MB.'));
                         return;
                     }
@@ -137,7 +141,6 @@ const PDFUpload = () => {
                         const pageText = textContent.items.map(item => item.str).join(' ');
                         fullText += pageText + '\n';
 
-                        // Limit to first 60 pages to avoid timeout
                         if (i >= 60) {
                             fullText += '\n[Content truncated after 60 pages]';
                             break;
@@ -163,66 +166,54 @@ const PDFUpload = () => {
 
     const generateQuestionsFromText = async (text) => {
         try {
-            // Clean and limit text
             const cleanText = text.replace(/[^\w\s.,!?;:'"-]/g, ' ').replace(/\s+/g, ' ').trim();
             const limitedText = cleanText.substring(0, 2500);
 
             console.log('Sending text to AI for question generation...');
 
-            // Use a better model and improved prompt
             const response = await axios.post('http://localhost:11434/api/generate', {
-                model: 'qwen3:8b', // Try a different model
-                prompt: `Create 5-8 high-quality multiple-choice questions based on the text below. 
+                model: 'qwen3:8b',
+                prompt: `Create exactly ${questionCount} multiple-choice questions based on the text below.
 
 TEXT:
 "${limitedText}"
 
 INSTRUCTIONS:
-1. Create clear, specific questions that test comprehension of the main ideas
-2. Make options distinct and meaningful (not generic like "Option A")
-3. Ensure correct answers are factually accurate based on the text
-4. Make questions educational and relevant to the content
+- Create exactly ${questionCount} questions
+- Questions should test comprehension of the main ideas
+- Make options distinct and meaningful
+- Ensure correct answers are factually accurate
 
 FORMAT REQUIREMENTS - MUST BE VALID JSON:
 [
   {
     "question": "Clear question here?",
-    "options": ["Specific option 1", "Specific option 2", "Specific option 3", "Specific option 4"],
+    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
     "correct": 0
   }
 ]
 
-IMPORTANT: 
-- Questions must be based ONLY on the provided text
-- Options must be complete phrases, not generic labels
-- Return ONLY the JSON array, no other text`,
+Return ONLY the JSON array, no other text`,
                 stream: false
             }, {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                timeout: 60000 // 60 second timeout
+                timeout: 60000
             });
 
             console.log('AI response received');
-
-            // Parse the response
             const responseText = response.data.response;
             console.log('Raw AI response:', responseText);
 
-            // Clean the response text before parsing
             let cleanResponse = responseText.trim();
-
-            // Remove any markdown code blocks
             cleanResponse = cleanResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '');
 
-            // Extract JSON from the response
             let questions;
             try {
                 questions = JSON.parse(cleanResponse);
             } catch (parseError) {
                 console.log('First parse failed, trying to extract JSON...', parseError);
-                // If that fails, try to extract JSON from the text
                 const jsonMatch = cleanResponse.match(/\[[\s\S]*\]/);
                 if (jsonMatch) {
                     questions = JSON.parse(jsonMatch[0]);
@@ -232,13 +223,13 @@ IMPORTANT:
                 }
             }
 
-            // Validate and clean questions
             if (Array.isArray(questions) && questions.length > 0) {
-                const validatedQuestions = questions.map((q, index) => {
-                    // Ensure question is a string
+                // Limit to the requested number of questions
+                const limitedQuestions = questions.slice(0, questionCount);
+                
+                const validatedQuestions = limitedQuestions.map((q, index) => {
                     const questionText = typeof q.question === 'string' ? q.question : `Question ${index + 1}`;
-
-                    // Ensure options are valid
+                    
                     let options = ['Option A', 'Option B', 'Option C', 'Option D'];
                     if (Array.isArray(q.options) && q.options.length === 4) {
                         options = q.options.map(opt =>
@@ -246,7 +237,6 @@ IMPORTANT:
                         );
                     }
 
-                    // Ensure correct index is valid
                     const correct = typeof q.correct === 'number' && q.correct >= 0 && q.correct <= 3 ? q.correct : 0;
 
                     return {
@@ -254,31 +244,29 @@ IMPORTANT:
                         options: options,
                         correct: correct
                     };
-                }).filter(q => q.question.length > 10); // Filter out very short questions
+                }).filter(q => q.question.length > 10);
 
                 console.log(`Generated ${validatedQuestions.length} validated questions`);
-
-                if (validatedQuestions.length === 0) {
-                    throw new Error('No valid questions generated');
-                }
-
                 setGeneratedQuestions(validatedQuestions);
+                
+                if (validatedQuestions.length < questionCount) {
+                    setUploadError(`Generated ${validatedQuestions.length} questions (requested ${questionCount}). Some questions were filtered out for quality.`);
+                }
             } else {
                 throw new Error('Invalid questions format generated');
             }
 
         } catch (error) {
             console.error('Error generating questions:', error);
-
-            // Enhanced fallback questions
-            const fallbackQuestions = generateEnhancedFallbackQuestions();
+            const fallbackQuestions = generateFallbackQuestions();
             setGeneratedQuestions(fallbackQuestions);
-            setUploadError('AI generation had issues. Using enhanced fallback questions. Try a different PDF or check if Ollama has better models available.');
+            setUploadError(`AI generation failed. Using ${fallbackQuestions.length} fallback questions. Try adjusting the question count or using a different PDF.`);
         }
     };
 
-    const generateEnhancedFallbackQuestions = () => {
-        return [
+    const generateFallbackQuestions = () => {
+        // Generate fallback questions based on the requested count
+        const baseQuestions = [
             {
                 question: "Based on the document, what is the primary subject or main topic discussed?",
                 options: [
@@ -328,33 +316,131 @@ IMPORTANT:
                     "Investigate related but distinct problem domains"
                 ],
                 correct: 0
+            },
+            {
+                question: "Which key concept was repeatedly referenced throughout the document?",
+                options: [
+                    "The importance of empirical validation",
+                    "The role of theoretical frameworks",
+                    "The impact of technological advancements",
+                    "The significance of historical context"
+                ],
+                correct: 1
+            },
+            {
+                question: "What evidence was provided to support the main arguments?",
+                options: [
+                    "Statistical data and quantitative analysis",
+                    "Case studies and expert opinions",
+                    "Theoretical proofs and logical reasoning",
+                    "Historical records and archival documents"
+                ],
+                correct: 0
+            },
+            {
+                question: "How did the document address potential limitations or criticisms?",
+                options: [
+                    "By acknowledging limitations and suggesting improvements",
+                    "By dismissing alternative viewpoints",
+                    "By focusing only on positive outcomes",
+                    "By avoiding discussion of limitations"
+                ],
+                correct: 0
+            },
+            {
+                question: "What was the intended audience for this document?",
+                options: [
+                    "Academic researchers and specialists",
+                    "General public and non-experts",
+                    "Industry professionals and practitioners",
+                    "Students and educators"
+                ],
+                correct: 0
+            },
+            {
+                question: "Which aspect of the subject received the most detailed examination?",
+                options: [
+                    "Methodological approaches and techniques",
+                    "Theoretical foundations and principles",
+                    "Practical applications and implementations",
+                    "Historical development and evolution"
+                ],
+                correct: 1
             }
         ];
+        
+        // Return the requested number of questions, up to the available base questions
+        return baseQuestions.slice(0, Math.min(questionCount, baseQuestions.length));
+    };
+
+    // Question Management Functions
+    const addNewQuestion = () => {
+        setEditingQuestion(null);
+        setNewQuestion({ question: '', options: ['', '', '', ''], correct: 0 });
+        setShowQuestionEditor(true);
+    };
+
+    const editQuestion = (question, index) => {
+        setEditingQuestion({ ...question, index });
+        setNewQuestion({ ...question });
+        setShowQuestionEditor(true);
+    };
+
+    const deleteQuestion = (index) => {
+        const updatedQuestions = generatedQuestions.filter((_, i) => i !== index);
+        setGeneratedQuestions(updatedQuestions);
+    };
+
+    const saveQuestion = () => {
+        if (!newQuestion.question.trim()) {
+            alert('Please enter a question');
+            return;
+        }
+
+        if (newQuestion.options.some(opt => !opt.trim())) {
+            alert('Please fill in all options');
+            return;
+        }
+
+        let updatedQuestions;
+        if (editingQuestion !== null) {
+            // Editing existing question
+            updatedQuestions = [...generatedQuestions];
+            updatedQuestions[editingQuestion.index] = { ...newQuestion };
+        } else {
+            // Adding new question
+            updatedQuestions = [...generatedQuestions, { ...newQuestion }];
+        }
+
+        setGeneratedQuestions(updatedQuestions);
+        setShowQuestionEditor(false);
+        setEditingQuestion(null);
+        setNewQuestion({ question: '', options: ['', '', '', ''], correct: 0 });
+    };
+
+    const cancelEdit = () => {
+        setShowQuestionEditor(false);
+        setEditingQuestion(null);
+        setNewQuestion({ question: '', options: ['', '', '', ''], correct: 0 });
+    };
+
+    const handleOptionChange = (index, value) => {
+        const updatedOptions = [...newQuestion.options];
+        updatedOptions[index] = value;
+        setNewQuestion({ ...newQuestion, options: updatedOptions });
     };
 
     const handleUseQuestions = () => {
         if (generatedQuestions.length === 0) {
-            alert('No questions generated yet. Please upload PDF files first.');
+            alert('No questions available. Please generate or create some questions first.');
             return;
         }
 
-        // Store questions in localStorage with room-specific key
         const roomQuestionsKey = `gameQuestions_${roomId}`;
         localStorage.setItem(roomQuestionsKey, JSON.stringify(generatedQuestions));
-
-        // Also store in the general key for backward compatibility
         localStorage.setItem('gameQuestions', JSON.stringify(generatedQuestions));
 
-        // Get player name from location state or use a default
         const currentPlayerName = playerName || 'Host';
-
-        console.log('Navigating back to room with:', {
-            roomId,
-            playerName: currentPlayerName,
-            questionCount: generatedQuestions.length
-        });
-
-        // Navigate back to room with proper parameters
         navigate(`/room/${roomId}?playerName=${encodeURIComponent(currentPlayerName)}&isHost=true`, {
             state: {
                 questionsGenerated: true,
@@ -363,38 +449,10 @@ IMPORTANT:
         });
     };
 
-
     const handleManualQuestions = () => {
-        const manualQuestions = [
-            {
-                question: "What is 2 + 2?",
-                options: ["3", "4", "5", "6"],
-                correct: 1
-            },
-            {
-                question: "What is the capital of France?",
-                options: ["London", "Berlin", "Paris", "Madrid"],
-                correct: 2
-            },
-            {
-                question: "Which language runs in a web browser?",
-                options: ["Java", "C", "Python", "JavaScript"],
-                correct: 3
-            },
-            {
-                question: "What is the largest planet in our solar system?",
-                options: ["Earth", "Saturn", "Jupiter", "Neptune"],
-                correct: 2
-            },
-            {
-                question: "Who wrote 'Romeo and Juliet'?",
-                options: ["Charles Dickens", "William Shakespeare", "Jane Austen", "Mark Twain"],
-                correct: 1
-            }
-        ];
-
+        const manualQuestions = generateFallbackQuestions().slice(0, questionCount);
         setGeneratedQuestions(manualQuestions);
-        setUploadError(''); // Clear any previous errors
+        setUploadError('');
     };
 
     const clearFiles = () => {
@@ -407,34 +465,56 @@ IMPORTANT:
         }
     };
 
-    const goBackToRoom = () => {
-        goToRoom();
-    };
-
     const triggerFileInput = () => {
         if (fileInputRef.current) {
             fileInputRef.current.click();
         }
     };
 
+    const handleQuestionCountChange = (e) => {
+        const value = parseInt(e.target.value);
+        if (value >= 1 && value <= 50) {
+            setQuestionCount(value);
+        }
+    };
+
     return (
         <div className="pdf-upload-container">
             <div className="pdf-upload-header">
-                <button onClick={goBackToRoom} className="back-button">
+                <button onClick={goToRoom} className="back-button pixel-button">
                     ← Back to Room {roomId}
                 </button>
-                <h1>PDF Question Generator</h1>
+                <h1 className="page-title">Question Manager</h1>
                 <div className="room-info">
                     <span>Room: {roomId}</span>
                     {playerName && <span>Host: {playerName}</span>}
                 </div>
             </div>
 
-            <div className="upload-section">
-                <h2>Upload PDF Files for Room {roomId}</h2>
+            {/* PDF Upload Section */}
+            <div className="upload-section pixel-card">
+                <h2>📄 Upload PDF Files</h2>
+
+                {/* Question Count Input */}
+                <div className="question-count-control">
+                    <label htmlFor="questionCount">Number of questions to generate:</label>
+                    <div className="count-input-group">
+                        <input
+                            type="number"
+                            id="questionCount"
+                            value={questionCount}
+                            onChange={handleQuestionCountChange}
+                            min="1"
+                            max="50"
+                            className="count-input"
+                            disabled={isProcessing}
+                        />
+                        <span className="count-range">(1-50)</span>
+                    </div>
+                </div>
 
                 {uploadError && (
-                    <div className="error-message">
+                    <div className="error-message pixel-card">
                         {uploadError}
                     </div>
                 )}
@@ -458,13 +538,13 @@ IMPORTANT:
                         style={{ display: 'none' }}
                     />
                     <div className="upload-prompt">
-                        <div className="upload-icon"></div>
+                        <div className="upload-icon">📄</div>
                         <p>
                             {isProcessing ? 'Processing PDF...' : 'Click to select PDF files or drag and drop them here'}
                         </p>
                         <small>Supported: PDF files (max 5 files, 10MB each)</small>
                         <br />
-                        <small>First 60 pages will be processed</small>
+                        <small>Generating up to {questionCount} questions</small>
                     </div>
                 </div>
 
@@ -473,11 +553,11 @@ IMPORTANT:
                         <h4>Selected Files ({uploadedFiles.length}):</h4>
                         {uploadedFiles.map((file, index) => (
                             <div key={index} className="file-item">
-                                <span>{file.name}</span>
+                                <span>📄 {file.name}</span>
                                 <span className="file-size">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
                             </div>
                         ))}
-                        <button onClick={clearFiles} className="clear-files-button" disabled={isProcessing}>
+                        <button onClick={clearFiles} className="clear-files-button pixel-button" disabled={isProcessing}>
                             Clear Files
                         </button>
                     </div>
@@ -485,48 +565,55 @@ IMPORTANT:
             </div>
 
             {isProcessing && (
-                <div className="processing-section">
+                <div className="processing-section pixel-card">
                     <div className="loading-spinner"></div>
-                    <p>Processing PDF files and generating questions... This may take a minute.</p>
+                    <p>Processing PDF files and generating {questionCount} questions... This may take a minute.</p>
                 </div>
             )}
 
-            {pdfText && !isProcessing && (
-                <div className="text-preview-section">
-                    <h3>Extracted Text Preview</h3>
-                    <div className="text-preview">
-                        {pdfText.substring(0, 500)}...
-                        {pdfText.length > 500 && (
-                            <div style={{ marginTop: '10px', fontStyle: 'italic' }}>
-                                (Showing first 500 of {pdfText.length} characters)
-                            </div>
-                        )}
+            {/* Question Management Section */}
+            <div className="question-management-section pixel-card">
+                <div className="section-header">
+                    <h2>🎯 Question Management</h2>
+                    <div className="management-actions">
+                        <button onClick={addNewQuestion} className="add-button pixel-button">
+                            ➕ Add New Question
+                        </button>
+                        <button onClick={handleManualQuestions} className="sample-button pixel-button">
+                            🎯 Generate {questionCount} Sample Questions
+                        </button>
                     </div>
                 </div>
-            )}
 
-            {generatedQuestions.length > 0 && (
-                <div className="questions-section">
-                    <div className="questions-header">
-                        <h2>Generated Questions ({generatedQuestions.length})</h2>
-                        <div className="questions-actions">
-                            <button onClick={handleUseQuestions} className="use-questions-button">
-                                Use These Questions in Room {roomId}
-                            </button>
-                            <button onClick={handleManualQuestions} className="manual-questions-button">
-                                Use Sample Questions Instead
-                            </button>
-                        </div>
-                    </div>
+                <div className="questions-stats">
+                    <span>Total Questions: {generatedQuestions.length} / {questionCount}</span>
+                    {generatedQuestions.length > 0 && (
+                        <button onClick={handleUseQuestions} className="use-questions-button pixel-button">
+                            ✅ Use {generatedQuestions.length} Questions in Game
+                        </button>
+                    )}
+                </div>
 
+                {generatedQuestions.length > 0 ? (
                     <div className="questions-list">
                         {generatedQuestions.map((question, index) => (
-                            <div key={index} className="question-card">
+                            <div key={index} className="question-card pixel-card">
                                 <div className="question-header">
                                     <h4>Question {index + 1}</h4>
-                                    <span className="correct-answer">
-                                        Correct: Option {String.fromCharCode(65 + question.correct)}
-                                    </span>
+                                    <div className="question-actions">
+                                        <button 
+                                            onClick={() => editQuestion(question, index)}
+                                            className="edit-button pixel-button small"
+                                        >
+                                            ✏️ Edit
+                                        </button>
+                                        <button 
+                                            onClick={() => deleteQuestion(index)}
+                                            className="delete-button pixel-button small"
+                                        >
+                                            🗑️ Delete
+                                        </button>
+                                    </div>
                                 </div>
                                 <p className="question-text">{question.question}</p>
                                 <div className="options-grid">
@@ -539,22 +626,76 @@ IMPORTANT:
                                                 {String.fromCharCode(65 + optIndex)}
                                             </span>
                                             <span className="option-text">{option}</span>
+                                            {optIndex === question.correct && (
+                                                <span className="correct-badge">✓ Correct</span>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         ))}
                     </div>
-                </div>
-            )}
+                ) : (
+                    <div className="no-questions">
+                        <p>No questions yet. Upload a PDF or create questions manually.</p>
+                        <p><small>Set the desired number of questions above before generating.</small></p>
+                    </div>
+                )}
+            </div>
 
-            {!isProcessing && generatedQuestions.length === 0 && uploadedFiles.length === 0 && (
-                <div className="manual-section">
-                    <h3>Quick Start</h3>
-                    <p>Don't have PDF files? Generate sample questions instead:</p>
-                    <button onClick={handleManualQuestions} className="manual-questions-button">
-                        Generate Sample Questions
-                    </button>
+            {/* Question Editor Modal */}
+            {showQuestionEditor && (
+                <div className="modal-overlay">
+                    <div className="question-editor-modal pixel-card">
+                        <h3>{editingQuestion !== null ? 'Edit Question' : 'Add New Question'}</h3>
+                        
+                        <div className="editor-form">
+                            <div className="form-group">
+                                <label>Question Text:</label>
+                                <textarea
+                                    value={newQuestion.question}
+                                    onChange={(e) => setNewQuestion({...newQuestion, question: e.target.value})}
+                                    placeholder="Enter your question here..."
+                                    rows="3"
+                                    className="question-input"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Options:</label>
+                                {newQuestion.options.map((option, index) => (
+                                    <div key={index} className="option-input-group">
+                                        <span className="option-label">{String.fromCharCode(65 + index)}:</span>
+                                        <input
+                                            type="text"
+                                            value={option}
+                                            onChange={(e) => handleOptionChange(index, e.target.value)}
+                                            placeholder={`Option ${String.fromCharCode(65 + index)}`}
+                                            className="option-input"
+                                        />
+                                        <label className="correct-radio">
+                                            <input
+                                                type="radio"
+                                                name="correctOption"
+                                                checked={newQuestion.correct === index}
+                                                onChange={() => setNewQuestion({...newQuestion, correct: index})}
+                                            />
+                                            Correct
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="editor-actions">
+                                <button onClick={cancelEdit} className="cancel-button pixel-button">
+                                    Cancel
+                                </button>
+                                <button onClick={saveQuestion} className="save-button pixel-button">
+                                    {editingQuestion !== null ? 'Update Question' : 'Add Question'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
