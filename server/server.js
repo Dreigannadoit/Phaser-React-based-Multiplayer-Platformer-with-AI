@@ -21,6 +21,7 @@ app.use(express.json());
 // Store active rooms
 const rooms = new Map();
 
+
 // Room-specific scoreboard update function
 // In server.js - Fix the updateRoomScoreboard function
 function updateRoomScoreboard(roomId) {
