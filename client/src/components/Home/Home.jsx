@@ -186,7 +186,7 @@ const Home = () => {
             <div className="home-content">
                 {/* Header Section */}
                 <div className="hero-section">
-                    <h1 className="home-title">QUIZ PLATFORMER</h1>
+                    <h1 className="home-title">The Notebook</h1>
                     <p className="tagline">Collect coins, answer questions, and compete with friends!</p>
                 </div>
 
