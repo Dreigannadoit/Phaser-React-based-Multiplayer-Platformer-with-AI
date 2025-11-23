@@ -8,6 +8,7 @@ import MultiplayerManager from './managers/MultiplayerManager'
 import PlayerStats from './PlayerStats' // Import the new component
 import { useSocket } from '../../context/SocketContext' // Import the socket context
 import Scoreboard from './Scoreboard'
+import RespawnCountdown from './RespawnCountdown'
 
 const Game = () => {
     const { roomId } = useParams()
@@ -143,6 +144,8 @@ const Game = () => {
 
             {/* Scoreboard Component */}
             <Scoreboard />
+            
+            <RespawnCountdown />
 
             <div
                 id="game-container"

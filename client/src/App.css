@@ -1527,3 +1527,281 @@
     gap: 5px;
   }
 }
+
+/* Respawn Countdown Styles - IMPROVED */
+.respawn-countdown-container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    background: white;
+    border: 6px solid var(--pixel-dark);
+    box-shadow: 12px 12px 0 var(--pixel-dark);
+    min-width: 300px;
+    max-width: 400px;
+    font-family: 'VT323', monospace;
+    animation: respawn-appear 0.3s ease-out;
+}
+
+.respawn-countdown-spiral {
+    position: absolute;
+    left: -15px;
+    top: 0;
+    bottom: 0;
+    width: 15px;
+    background: repeating-linear-gradient(
+        to bottom,
+        var(--pixel-orange),
+        var(--pixel-orange) 5px,
+        var(--pixel-dark) 5px,
+        var(--pixel-dark) 10px
+    );
+    border: 2px solid var(--pixel-dark);
+}
+
+.respawn-countdown-content {
+    padding: 25px;
+    background: linear-gradient(135deg, #fff9c4 0%, #ffecb3 100%);
+    position: relative;
+}
+
+.respawn-countdown-header {
+    text-align: center;
+    margin-bottom: 20px;
+    border-bottom: 3px dashed var(--pixel-dark);
+    padding-bottom: 15px;
+}
+
+.respawn-skull-icon {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    filter: drop-shadow(2px 2px 0 var(--pixel-dark));
+    animation: skull-shake 2s infinite;
+}
+
+.respawn-countdown-header h2 {
+    font-size: 2.5rem;
+    color: #d32f2f;
+    text-shadow: 3px 3px 0 var(--pixel-dark);
+    margin: 0;
+    letter-spacing: 1px;
+}
+
+.respawn-countdown-display {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.countdown-text {
+    font-size: 1.5rem;
+    color: var(--pixel-dark);
+    margin-bottom: 15px;
+    text-shadow: 1px 1px 0 var(--notebook-shadow);
+}
+
+.countdown-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--pixel-orange);
+    text-shadow: 2px 2px 0 var(--pixel-dark);
+    animation: countdown-pulse 1s infinite;
+}
+
+/* IMPROVED Progress Bar */
+.respawn-progress-container {
+    position: relative;
+    height: 24px;
+    background: #e0e0e0;
+    border: 3px solid var(--pixel-dark);
+    margin: 15px 0;
+    overflow: hidden;
+}
+
+
+.respawn-progress-bar {
+    height: 100%;
+    background: var(--pixel-orange);
+    transition: width 0.3s ease-out;
+    position: relative;
+    /* Add a subtle pixel pattern */
+    background-image: 
+        linear-gradient(45deg, rgba(255,255,255,0.1) 25%, 
+        transparent 25%, 
+        transparent 50%, 
+        rgba(255,255,255,0.1) 50%, 
+        rgba(255,255,255,0.1) 75%, 
+        transparent 75%);
+    background-size: 10px 10px;
+}
+
+
+
+/* Color change as it fills up */
+.respawn-progress-bar[style*="width: 0%"] {
+    background: #e0e0e0;
+}
+
+.respawn-progress-bar[style*="width: 100%"] {
+    background: var(--pixel-green); /* Change to green when complete */
+}
+
+/* Simplified progress ticks - remove if still looks odd */
+.respawn-progress-ticks {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 1px;
+}
+
+.progress-tick {
+    width: 1px;
+    height: 100%;
+    background: var(--pixel-dark);
+    opacity: 0.2;
+}
+
+.progress-tick.active {
+    opacity: 0.4;
+    background: var(--pixel-dark);
+}
+
+.respawn-tips {
+    background: white;
+    border: 3px solid var(--pixel-dark);
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.respawn-tips h3 {
+    font-size: 1.3rem;
+    color: var(--pixel-dark);
+    margin: 0 0 10px 0;
+    text-align: center;
+    text-shadow: 1px 1px 0 var(--notebook-shadow);
+}
+
+.respawn-tips ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.respawn-tips li {
+    padding: 5px 0;
+    font-size: 1.1rem;
+    color: var(--pixel-dark);
+    position: relative;
+    padding-left: 20px;
+}
+
+.respawn-tips li::before {
+    content: '▶';
+    position: absolute;
+    left: 0;
+    color: var(--pixel-orange);
+}
+
+.respawn-visual-effect {
+    text-align: center;
+    font-size: 1.3rem;
+    color: var(--pixel-orange);
+    font-weight: bold;
+    text-shadow: 1px 1px 0 var(--pixel-dark);
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.respawn-visual-effect.pulsing {
+    animation: ready-pulse 0.5s infinite alternate;
+}
+
+/* Animations */
+@keyframes respawn-appear {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    70% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.05);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+@keyframes skull-shake {
+    0%, 100% {
+        transform: rotate(0deg);
+    }
+    25% {
+        transform: rotate(-5deg);
+    }
+    75% {
+        transform: rotate(5deg);
+    }
+}
+
+@keyframes countdown-pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+@keyframes ready-pulse {
+    0% {
+        opacity: 0.5;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}
+
+/* Alternative: Even simpler progress bar without ticks */
+.respawn-progress-simple {
+    position: relative;
+    height: 20px;
+    background: #ccc;
+    border: 3px solid var(--pixel-dark);
+    margin: 15px 0;
+}
+
+.respawn-progress-simple-bar {
+    height: 100%;
+    background: var(--pixel-orange);
+    transition: width 0.3s ease-out;
+    /* Pixel art style with blocky appearance */
+    image-rendering: pixelated;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .respawn-countdown-container {
+        min-width: 280px;
+        max-width: 90vw;
+    }
+    
+    .respawn-countdown-header h2 {
+        font-size: 2rem;
+    }
+    
+    .countdown-text {
+        font-size: 1.3rem;
+    }
+    
+    .countdown-number {
+        font-size: 2rem;
+    }
+}

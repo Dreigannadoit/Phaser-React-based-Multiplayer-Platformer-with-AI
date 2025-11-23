@@ -1,4 +1,3 @@
-// client/src/components/Game/UIManager.js
 export class UIManager {
     constructor(scene) {
         this.scene = scene;
@@ -18,10 +17,8 @@ export class UIManager {
         }
 
         try {
-            // Create HUD container that's completely separate from the game camera
             this.hudContainer = this.scene.add.container(0, 0);
 
-            // HUD background for better visibility - positioned in screen space
             const hudBackground = this.scene.add.rectangle(10, 10, 200, 60, 0x000000, 0.7);
             hudBackground.setOrigin(0, 0);
             hudBackground.setStrokeStyle(2, 0xffffff);

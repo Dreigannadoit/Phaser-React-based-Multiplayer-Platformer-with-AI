@@ -120,7 +120,7 @@ export default class PlatformerScene extends Phaser.Scene {
         this.load.image('player_run_2', `${basePath}run/player_run_2.png`);
         this.load.image('player_run_3', `${basePath}run/player_run_3.png`);
         this.load.image('player_run_4', `${basePath}run/player_run_4.png`);
-        
+
         // Load jump animation frames
         this.load.image('player_jump_1', `${basePath}jump/player_jump_1.png`);
     }
@@ -356,6 +356,11 @@ export default class PlatformerScene extends Phaser.Scene {
         this.isRespawning = true;
         this.respawnTimer = this.respawnTime;
 
+
+        window.dispatchEvent(new CustomEvent('respawnStart', {
+            detail: { time: this.respawnTime }
+        }));
+
         // Disable player controls and hide player
         const localPlayer = this.playerManager.getLocalPlayer();
         if (localPlayer && localPlayer.getSprite()) {
@@ -439,29 +444,33 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     updateRespawnTimer(delta) {
-        // Convert delta from milliseconds to seconds
         const deltaSeconds = delta / 1000;
         this.respawnTimer = Math.max(0, this.respawnTimer - deltaSeconds);
 
-        // Update countdown text
+        // Emit event to React component
+        window.dispatchEvent(new CustomEvent('respawnUpdate', {
+            detail: { time: this.respawnTimer }
+        }));
+
+        // Update countdown text (keep your existing logic)
         if (this.respawnCountdownText) {
             const secondsLeft = Math.ceil(this.respawnTimer);
             this.respawnCountdownText.setText(`Respawning in ${secondsLeft}...`);
 
-            // Flash effect when getting close to respawn
             if (secondsLeft <= 3) {
-                this.respawnCountdownText.setFill('#ffff00'); // Yellow for last 3 seconds
+                this.respawnCountdownText.setFill('#ffff00');
             }
         }
 
-        // Check if respawn time is up
         if (this.respawnTimer <= 0) {
             this.respawnPlayer();
         }
     }
-
     respawnPlayer() {
         console.log('🔄 Respawning player...');
+
+         // Emit event to React component FIRST
+        window.dispatchEvent(new CustomEvent('respawnEnd'));
 
         // Clean up respawn UI
         if (this.respawnText) {
