@@ -1,7 +1,6 @@
 import { MultiplayerPlayer } from "../entities/MultiplayerPlayer";
 import { Player } from "../entities/Player";
 
-// client/src/components/Game/PlayerManager.js
 export class PlayerManager {
     constructor(scene) {
         this.scene = scene;
@@ -13,6 +12,21 @@ export class PlayerManager {
 
     setLocalPlayer(playerData) {
         console.log('🎯 Setting local player:', playerData);
+
+        // CRITICAL: Check if player is spectator
+        if (playerData.isSpectator) {
+            console.log('🎯 Local player is spectator - creating spectator object');
+            this.localPlayer = {
+                playerData: playerData,
+                isSpectator: true,
+                getSprite: () => null,
+                update: () => {}, // No-op for spectators
+                getNetworkAnimation: () => 'idle',
+                destroy: () => {} // No-op destroy
+            };
+            this.scene.isPlayerReady = true;
+            return;
+        }
 
         if (!playerData || !playerData.position) {
             console.error('❌ Invalid player data received:', playerData);
@@ -54,6 +68,12 @@ export class PlayerManager {
     }
 
     convertToControlledPlayer() {
+        // CRITICAL: Don't convert spectators
+        if (this.localPlayer && this.localPlayer.isSpectator) {
+            console.log('🎯 Skipping conversion for spectator');
+            return;
+        }
+
         if (!this.localPlayer) return;
 
         const sprite = this.localPlayer.getSprite();
@@ -81,73 +101,71 @@ export class PlayerManager {
         }
     }
     
-  
-updateOtherPlayer(data) {
-    const { playerId, position, velocity, animation, timestamp, playerName } = data; // Add playerName
+    updateOtherPlayer(data) {
+        const { playerId, position, velocity, animation, timestamp, playerName } = data;
 
-    if (playerId === this.localPlayer?.playerData?.id) {
-        return; // Don't update local player from network
-    }
-
-    let otherPlayer = this.otherPlayers.get(playerId);
-
-    if (!otherPlayer) {
-        // Create new remote player with pooling consideration
-        if (this.otherPlayers.size >= this.maxPlayers) {
-            console.warn(`Player limit reached (${this.maxPlayers}), cannot create new player`);
-            return;
+        if (playerId === this.localPlayer?.playerData?.id) {
+            return; // Don't update local player from network
         }
 
-        // Use provided position or default to spawn area
-        const spawnPosition = this.scene.mapManager.getSpawnPosition();
+        let otherPlayer = this.otherPlayers.get(playerId);
 
-        const playerData = {
-            id: playerId,
-            name: playerName || `Player${this.generateUniqueSuffix(playerId)}`, // Use provided name or generate unique
-            position: position || spawnPosition,
-            velocity: velocity,
-            animation: animation,
-            color: this.getPlayerColor(playerId)
-        };
+        if (!otherPlayer) {
+            // Create new remote player with pooling consideration
+            if (this.otherPlayers.size >= this.maxPlayers) {
+                console.warn(`Player limit reached (${this.maxPlayers}), cannot create new player`);
+                return;
+            }
 
-        otherPlayer = new MultiplayerPlayer(this.scene, playerData, false);
-        this.otherPlayers.set(playerId, otherPlayer);
+            // Use provided position or default to spawn area
+            const spawnPosition = this.scene.mapManager.getSpawnPosition();
 
-        console.log(`👥 Created remote player ${playerData.name} (${playerId}) at (${playerData.position.x}, ${playerData.position.y})`);
-    } else {
-        // Update existing player name if provided and different
-        if (playerName && otherPlayer.playerData.name !== playerName) {
-            console.log(`🔄 Updating player ${playerId} name from "${otherPlayer.playerData.name}" to "${playerName}"`);
-            otherPlayer.playerData.name = playerName;
-            
-            // Update the name text display
-            if (otherPlayer.nameText) {
-                otherPlayer.nameText.setText(playerName);
+            const playerData = {
+                id: playerId,
+                name: playerName || `Player${this.generateUniqueSuffix(playerId)}`,
+                position: position || spawnPosition,
+                velocity: velocity,
+                animation: animation,
+                color: this.getPlayerColor(playerId)
+            };
+
+            otherPlayer = new MultiplayerPlayer(this.scene, playerData, false);
+            this.otherPlayers.set(playerId, otherPlayer);
+
+            console.log(`👥 Created remote player ${playerData.name} (${playerId}) at (${playerData.position.x}, ${playerData.position.y})`);
+        } else {
+            // Update existing player name if provided and different
+            if (playerName && otherPlayer.playerData.name !== playerName) {
+                console.log(`🔄 Updating player ${playerId} name from "${otherPlayer.playerData.name}" to "${playerName}"`);
+                otherPlayer.playerData.name = playerName;
+                
+                // Update the name text display
+                if (otherPlayer.nameText) {
+                    otherPlayer.nameText.setText(playerName);
+                }
             }
         }
+
+        // Store update time for interpolation
+        this.otherPlayerUpdateTimes.set(playerId, {
+            timestamp: timestamp || Date.now(),
+            position: position,
+            velocity: velocity
+        });
+
+        // Update player with new data
+        otherPlayer.update({
+            ...otherPlayer.playerData,
+            position,
+            velocity,
+            animation
+        }, timestamp || Date.now());
     }
 
-    // Store update time for interpolation
-    this.otherPlayerUpdateTimes.set(playerId, {
-        timestamp: timestamp || Date.now(),
-        position: position,
-        velocity: velocity
-    });
+    generateUniqueSuffix(playerId) {
+        return playerId.slice(-4);
+    }
 
-    // Update player with new data
-    otherPlayer.update({
-        ...otherPlayer.playerData,
-        position,
-        velocity,
-        animation
-    }, timestamp || Date.now());
-}
-
-// Add helper method for unique suffix generation
-generateUniqueSuffix(playerId) {
-    // Use last 4 characters for more variety
-    return playerId.slice(-4);
-}
     getPlayerColor(playerId) {
         const colors = [0xff6b6b, 0x4ecdc4, 0x45b7d1, 0x96ceb4, 0xfeca57, 0xff9ff3, 0x54a0ff, 0x5f27cd, 0x00d2d3, 0xff9f43];
         let hash = 0;

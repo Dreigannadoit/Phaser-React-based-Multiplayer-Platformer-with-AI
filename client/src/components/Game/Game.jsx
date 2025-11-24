@@ -5,33 +5,45 @@ import Phaser from 'phaser'
 import PlatformerScene from './PlatformerScene'
 import QuizPopup from '../Quiz/QuizPopup'
 import MultiplayerManager from './managers/MultiplayerManager'
-import PlayerStats from './PlayerStats' // Import the new component
-import { useSocket } from '../../context/SocketContext' // Import the socket context
+import PlayerStats from './PlayerStats'
+import { useSocket } from '../../context/SocketContext'
 import Scoreboard from './Scoreboard'
 import RespawnCountdown from './RespawnCountdown'
+import SpectatorPanel from './SpectatorPanel'
 
 const Game = () => {
     const { roomId } = useParams()
     const gameRef = useRef(null)
     const [quizData, setQuizData] = useState(null)
     const [multiplayerManager, setMultiplayerManager] = useState(null)
+    const [showSpectatorPanel, setShowSpectatorPanel] = useState(false);
+    const [playerData, setPlayerData] = useState({});
     const { socket } = useSocket()
 
+    // Get player data including isSpectator
     useEffect(() => {
-        // Get player data from localStorage
         const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
-        const { playerName, isHost, roomId: storedRoomId } = storedData;
+        setPlayerData(storedData);
 
-        console.log('🎮 Game component loading with stored data:', storedData);
+        if (storedData.isHost && storedData.isSpectator) {
+            setShowSpectatorPanel(true);
+            console.log('🎯 Host is in spectator mode - showing spectator panel');
+        } else {
+            setShowSpectatorPanel(false); // Ensure regular players don't see it
+        }
+    }, [roomId, socket]);
 
-        // Initialize multiplayer manager with the shared socket
-        const manager = new MultiplayerManager(roomId || storedRoomId, socket);
-        setMultiplayerManager(manager);
-        window.multiplayerManager = manager;
+    useEffect(() => {
+        const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
+        setPlayerData(storedData);
 
-        // Initialize the manager if socket is available
-        if (socket) {
-            manager.setSocket(socket);
+        // CRITICAL FIX: Only host spectators get the panel
+        if (storedData.isHost && storedData.isSpectator) {
+            setShowSpectatorPanel(true);
+            console.log('🎯 Host is in spectator mode - showing spectator panel');
+        } else {
+            setShowSpectatorPanel(false);
+            console.log('🎯 Regular player or host playing - hiding spectator panel');
         }
 
         const config = {
@@ -67,6 +79,16 @@ const Game = () => {
 
         window.addEventListener('showQuiz', handleShowQuiz);
 
+        // Initialize multiplayer manager AFTER game is created
+        const manager = new MultiplayerManager(roomId || storedData.roomId, socket);
+        setMultiplayerManager(manager);
+        window.multiplayerManager = manager;
+
+        // Initialize the manager if socket is available
+        if (socket) {
+            manager.setSocket(socket);
+        }
+
         return () => {
             window.removeEventListener('showQuiz', handleShowQuiz);
             game.destroy(true);
@@ -74,8 +96,7 @@ const Game = () => {
                 multiplayerManager.cleanup();
             }
         };
-    }, [roomId, socket]); // Add socket to dependencies
-
+    }, [roomId, socket]);
 
     useEffect(() => {
         // Load questions and pass to quiz manager
@@ -92,7 +113,7 @@ const Game = () => {
                     if (storedQuestions && window.quizManager) {
                         const questions = JSON.parse(storedQuestions);
                         window.quizManager.updateQuestions(questions);
-                        console.log(`🎯 Loaded ${questions.length} questions for room ${currentRoomId}`);
+                        // console.log(`🎯 Loaded ${questions.length} questions for room ${currentRoomId}`);
                     }
                 }
             } catch (error) {
@@ -123,7 +144,7 @@ const Game = () => {
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#1a1a1a',
-        position: 'relative' // Important for positioning PlayerStats
+        position: 'relative'
     }
 
     const gameContainerStyle = {
@@ -137,14 +158,47 @@ const Game = () => {
         overflow: 'hidden'
     }
 
+    // Check if player is a spectator
+    const isSpectator = playerData.isHost && playerData.isSpectator;
+
     return (
         <div className="game-wrapper" style={gameWrapperStyle}>
-            {/* Player Stats Component */}
-            <PlayerStats />
+            {/* Player Stats Component - Show for ALL players (non-spectators) */}
+            {!isSpectator && <PlayerStats />}
 
-            {/* Scoreboard Component */}
+            {/* Spectator Toggle Button - ONLY for host spectators */}
+            {isSpectator && (
+                <button
+                    className="spectator-toggle-btn"
+                    onClick={() => setShowSpectatorPanel(!showSpectatorPanel)}
+                    style={{
+                        position: 'fixed',
+                        top: '20px',
+                        right: '20px',
+                        zIndex: 999,
+                        background: 'var(--pixel-orange)',
+                        border: '3px solid var(--pixel-dark)',
+                        color: 'white',
+                        padding: '10px 15px',
+                        cursor: 'pointer',
+                        fontFamily: 'VT323, monospace',
+                        fontSize: '1.2rem',
+                        boxShadow: '3px 3px 0 var(--pixel-dark)'
+                    }}
+                >
+                    {showSpectatorPanel ? '👁️ Hide Panel' : '👁️ Show Panel'}
+                </button>
+            )}
+
+            {/* Spectator Panel - ONLY for host spectators */}
+            <SpectatorPanel
+                isVisible={showSpectatorPanel && isSpectator}
+                onToggle={() => setShowSpectatorPanel(false)}
+            />
+
+            {/* Scoreboard Component - Show for everyone */}
             <Scoreboard />
-            
+
             <RespawnCountdown />
 
             <div

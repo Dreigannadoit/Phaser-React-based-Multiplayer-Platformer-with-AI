@@ -1,4 +1,4 @@
-// client/src/components/Game/NetworkManager.js
+// client/src/components/Game/managers/NetworkManager.js
 export class NetworkManager {
     constructor(scene) {
         this.scene = scene;
@@ -8,13 +8,18 @@ export class NetworkManager {
     }
 
     update(time, delta) {
+        // CRITICAL: Don't update movement for spectators
+        const localPlayer = this.scene.playerManager.getLocalPlayer();
+        if (localPlayer && localPlayer.isSpectator) {
+            return; // Spectators don't send movement updates
+        }
+
         // Throttle local player updates to reduce network traffic
         const now = Date.now();
         if (now - this.lastPlayerUpdate > this.playerUpdateRate) {
             this.lastPlayerUpdate = now;
 
             // Update and send local player movement
-            const localPlayer = this.scene.playerManager.getLocalPlayer();
             if (localPlayer && localPlayer.update && this.scene.isPlayerReady) {
                 localPlayer.update(time, delta);
 
@@ -25,7 +30,6 @@ export class NetworkManager {
             }
         } else {
             // Still update player locally but don't send network updates
-            const localPlayer = this.scene.playerManager.getLocalPlayer();
             if (localPlayer && localPlayer.update && this.scene.isPlayerReady) {
                 localPlayer.update(time, delta);
             }
@@ -34,6 +38,13 @@ export class NetworkManager {
 
     sendPlayerMovementUpdate() {
         const localPlayer = this.scene.playerManager.getLocalPlayer();
+
+        // CRITICAL: Double-check spectator status
+        if (!localPlayer || localPlayer.isSpectator) {
+            console.log('🎯 Spectator mode - skipping movement update');
+            return;
+        }
+
         const sprite = localPlayer.getSprite();
         if (!sprite) return;
 

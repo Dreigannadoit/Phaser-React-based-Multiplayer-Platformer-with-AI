@@ -98,7 +98,7 @@ const Home = () => {
             isHost: true,
             timestamp: new Date().toISOString()
         }
-        
+
         const updatedRooms = [newRecentRoom, ...recentRooms.filter(room => room.roomId !== newRoomId)].slice(0, 5)
         setRecentRooms(updatedRooms)
         localStorage.setItem('recentRooms', JSON.stringify(updatedRooms))
@@ -144,7 +144,7 @@ const Home = () => {
             isHost: false,
             timestamp: new Date().toISOString()
         }
-        
+
         const updatedRooms = [newRecentRoom, ...recentRooms.filter(room => room.roomId !== cleanRoomId)].slice(0, 5)
         setRecentRooms(updatedRooms)
         localStorage.setItem('recentRooms', JSON.stringify(updatedRooms))
@@ -156,16 +156,17 @@ const Home = () => {
     const joinRecentRoom = (recentRoom) => {
         setPlayerName(recentRoom.playerName)
         setRoomId(recentRoom.roomId)
-        
+
         const encodedName = encodeURIComponent(recentRoom.playerName)
-        
+
         if (recentRoom.isHost) {
             // Host goes to PDF uploader
             navigate(`/pdf-upload/${recentRoom.roomId}`, {
                 state: {
                     roomId: recentRoom.roomId,
                     playerName: recentRoom.playerName,
-                    isHost: true
+                    isHost: true,
+                    isSpectator: recentRoom.isSpectator // Add this
                 }
             })
         } else {
@@ -196,7 +197,7 @@ const Home = () => {
                         <div className="action-icon"></div>
                         <h3>HOST GAME</h3>
                         <p>Create a new room and generate questions from PDFs</p>
-                        <button 
+                        <button
                             onClick={handleCreateRoomClick}
                             className="host-button pixel-button"
                         >
@@ -208,7 +209,7 @@ const Home = () => {
                         <div className="action-icon"></div>
                         <h3>JOIN GAME</h3>
                         <p>Enter a room ID to join an existing game</p>
-                        <button 
+                        <button
                             onClick={handleJoinRoomClick}
                             className="join-button pixel-button"
                         >
@@ -224,7 +225,7 @@ const Home = () => {
                             <h3 className="modal-title">
                                 {actionType === 'create' ? 'CREATE ROOM' : 'JOIN ROOM'}
                             </h3>
-                            
+
                             <div className="input-group">
                                 <label className="input-label">YOUR NAME</label>
                                 <input
@@ -259,13 +260,13 @@ const Home = () => {
                             )}
 
                             <div className="modal-actions">
-                                <button 
+                                <button
                                     onClick={() => setShowNameModal(false)}
                                     className="cancel-button pixel-button"
                                 >
                                     CANCEL
                                 </button>
-                                <button 
+                                <button
                                     onClick={handleNameSubmit}
                                     className="confirm-button pixel-button"
                                     disabled={!playerName.trim() || (actionType === 'join' && !roomId.trim())}

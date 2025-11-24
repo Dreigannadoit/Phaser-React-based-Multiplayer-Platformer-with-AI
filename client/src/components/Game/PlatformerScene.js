@@ -172,24 +172,13 @@ export default class PlatformerScene extends Phaser.Scene {
         this.spawnArea = mapDimensions.spawnArea;
 
         // DEBUG: Check if coins were created
-        console.log(`🔍 Map created with ${this.mapManager.getCoins().getLength()} coins`);
-        console.log(`📍 Spawn area:`, this.spawnArea);
+        // console.log(`🔍 Map created with ${this.mapManager.getCoins().getLength()} coins`);
+        // console.log(`📍 Spawn area:`, this.spawnArea);
 
         // Set up camera
         this.cameras.main.setBounds(0, 0, mapDimensions.width, mapDimensions.height);
         this.cameras.main.setZoom(this.normalZoom);
         this.cameras.main.setLerp(0.5, 0.6);
-
-        // Add debug key for testing
-        this.input.keyboard.on('keydown-D', () => {
-            console.log('🐛 DEBUG INFO:');
-            console.log(`- Coins in scene: ${this.mapManager.getCoins().getLength()}`);
-            console.log(`- Player position: (${this.playerManager.getLocalPlayer()?.getSprite()?.x}, ${this.playerManager.getLocalPlayer()?.getSprite()?.y})`);
-            console.log(`- Coins collected: ${this.coinsCollected}`);
-            console.log(`- Is multiplayer: ${this.isMultiplayer}`);
-            console.log(`- Is respawning: ${this.isRespawning}`);
-            console.log(`- Respawn timer: ${this.respawnTimer}`);
-        });
 
         window.quizManager = this.quizManager;
         window.gameScene = this;
@@ -229,8 +218,6 @@ export default class PlatformerScene extends Phaser.Scene {
         const screenWidth = this.cameras.main.width;
         const screenHeight = this.cameras.main.height;
 
-        console.log(`🖥️ Creating parallax backgrounds for screen: ${screenWidth}x${screenHeight}`);
-
         layers.forEach((layer) => {
             // Use REGULAR Sprite instead of TileSprite
             const bg = this.add.sprite(0, 0, layer.key);
@@ -258,7 +245,6 @@ export default class PlatformerScene extends Phaser.Scene {
                 speed: layer.speed,
             });
 
-            console.log(`🎨 Created parallax layer: ${layer.key} (scaled to ${screenWidth}x${screenHeight})`);
         });
     }
 
@@ -469,7 +455,7 @@ export default class PlatformerScene extends Phaser.Scene {
     respawnPlayer() {
         console.log('🔄 Respawning player...');
 
-         // Emit event to React component FIRST
+        // Emit event to React component FIRST
         window.dispatchEvent(new CustomEvent('respawnEnd'));
 
         // Clean up respawn UI
@@ -703,11 +689,30 @@ export default class PlatformerScene extends Phaser.Scene {
         this.uiManager = new UIManager(this);
     }
 
-    // Delegate methods to managers
     setLocalPlayer(playerData) {
-        // Override position with spawn area position if not specified
-        const spawnPosition = this.mapManager.getSpawnPosition();
+        console.log('🎯 Setting local player with data:', playerData);
 
+        // CRITICAL: Check if player is a spectator
+        if (playerData.isSpectator) {
+            console.log('🎯 Host is spectator, not creating player character');
+            this.isPlayerReady = true;
+
+            // Set up spectator camera and controls
+            this.setupSpectatorCamera();
+            this.setupSpectatorControls();
+
+            // Create a spectator object instead of a player
+            this.playerManager.setLocalPlayer({
+                ...playerData,
+                isSpectator: true,
+                position: { x: 0, y: 0 } // Dummy position
+            });
+            return;
+        }
+
+        // Regular player setup for non-spectators
+        console.log('🎯 Creating player character (regular player or host playing)');
+        const spawnPosition = this.mapManager.getSpawnPosition();
         const playerDataWithSpawn = {
             ...playerData,
             position: {
@@ -719,6 +724,67 @@ export default class PlatformerScene extends Phaser.Scene {
         this.playerManager.setLocalPlayer(playerDataWithSpawn);
     }
 
+    setupSpectatorCamera() {
+        console.log('🎯 Setting up spectator camera');
+
+        // Stop following any player
+        this.cameras.main.stopFollow();
+
+        // Center camera on the map
+        const mapBounds = this.mapManager.getMapBounds();
+        const mapCenterX = mapBounds.width / 2;
+        const mapCenterY = mapBounds.height / 2;
+
+        this.cameras.main.centerOn(mapCenterX, mapCenterY);
+        this.cameras.main.setZoom(1.2); // Comfortable zoom level for spectators
+
+        console.log('🎯 Spectator camera ready - use mouse to pan, scroll to zoom');
+    }
+
+    setupSpectatorControls() {
+        let isDragging = false;
+        let lastDragPoint = null;
+
+        // Pan camera with mouse drag
+        this.input.on('pointerdown', (pointer) => {
+            if (pointer.button === 0) { // Left click
+                isDragging = true;
+                lastDragPoint = pointer.position.clone();
+                this.cameras.main.stopFollow(); // Ensure we're not following any player
+            }
+        });
+
+        this.input.on('pointermove', (pointer) => {
+            if (isDragging && lastDragPoint) {
+                const camera = this.cameras.main;
+                const deltaX = lastDragPoint.x - pointer.x;
+                const deltaY = lastDragPoint.y - pointer.y;
+
+                camera.scrollX += deltaX / camera.zoom;
+                camera.scrollY += deltaY / camera.zoom;
+
+                lastDragPoint = pointer.position.clone();
+            }
+        });
+
+        this.input.on('pointerup', () => {
+            isDragging = false;
+            lastDragPoint = null;
+        });
+
+        // Zoom with mouse wheel
+        this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
+            const currentZoom = this.cameras.main.zoom;
+            const zoomSpeed = 0.001;
+            const newZoom = Phaser.Math.Clamp(currentZoom - deltaY * zoomSpeed, 0.5, 3);
+            this.cameras.main.setZoom(newZoom);
+        });
+
+        // Add keyboard controls for spectator
+        this.cursorKeys = this.input.keyboard.createCursorKeys();
+
+        console.log('🎯 Spectator controls enabled: Drag to pan, Scroll to zoom, Arrow keys to move');
+    }
 
     updateOtherPlayer(data) {
         this.playerManager.updateOtherPlayer(data);

@@ -76,14 +76,17 @@ io.on('connection', (socket) => {
     });
 
     socket.on('join-game', (data) => {
-        const { roomId, playerName, isHost } = data;
+        const { roomId, playerName, isHost, isSpectator = false } = data;
 
         console.log(`🎮 JOIN-GAME REQUEST:`, {
             socketId: socket.id,
             playerName,
             isHost,
+            isSpectator,
             roomId
         });
+
+        const finalIsSpectator = isHost ? (isSpectator || false) : false;
 
         // Create room if it doesn't exist (allow host to create)
         if (!rooms.has(roomId)) {
@@ -100,17 +103,10 @@ io.on('connection', (socket) => {
                 scoreboard: new Map()
             });
             console.log(`✅ Room ${roomId} created by host`);
-
-            // Clear any previous questions when creating new room
-            console.log(`🧹 Server: New room ${roomId} created - previous questions should be cleared`);
         }
 
         const room = rooms.get(roomId);
         console.log(`📊 Room ${roomId} currently has ${room.players.length} players`);
-
-        room.players.forEach((p, index) => {
-            console.log(`  Player ${index}: ${p.name} (${p.id}) - Host: ${p.isHost}`);
-        });
 
         // Check if this socket is already in the room (reconnection case)
         const existingPlayerIndex = room.players.findIndex(p => p.id === socket.id);
@@ -118,35 +114,37 @@ io.on('connection', (socket) => {
         if (existingPlayerIndex !== -1) {
             const oldPlayer = room.players[existingPlayerIndex];
 
-            console.log(`🔄 Player ${oldPlayer.name} reconnecting to room ${roomId} (was ${playerName})`);
+            console.log(`🔄 Player ${oldPlayer.name} reconnecting to room ${roomId}`);
+            console.log(`🎯 Previous spectator: ${oldPlayer.isSpectator}, New spectator: ${isSpectator}`);
 
-            // CRITICAL: Preserve the original name, don't allow name changes on reconnect
-            // Only update non-name properties
+            // CRITICAL FIX: Preserve the original spectator status unless explicitly changed
+            // Only update spectator status if it's provided and different
+            const finalSpectatorStatus = (isSpectator !== undefined) ? isSpectator : oldPlayer.isSpectator;
+
             room.players[existingPlayerIndex] = {
                 ...oldPlayer,
-                // DON'T update the name: keep the original name
-                isHost: isHost, // You might want to preserve this too
+                isSpectator: finalSpectatorStatus, // Preserve or update spectator status
+                isHost: isHost, // Update host status if needed
                 position: { x: 100, y: 200 },
                 velocity: { x: 0, y: 0 },
                 animation: 'idle'
             };
 
-            // Scoreboard should also keep the original name
-            // Don't update the scoreboard name on reconnect
-
-            // Send player assignment with ORIGINAL name
+            // Send player assignment with updated data
             socket.emit('player-assigned', {
                 playerId: socket.id,
-                isHost: oldPlayer.isHost, // Use original host status too
-                playerName: oldPlayer.name // Include the original name
+                isHost: oldPlayer.isHost,
+                playerName: oldPlayer.name,
+                isSpectator: finalSpectatorStatus // Include spectator status
             });
 
             // Send current game state to the reconnecting player
             socket.emit('game-state', {
                 players: room.players.map(p => ({
                     id: p.id,
-                    name: p.name, // This will have the original names
+                    name: p.name,
                     isHost: p.isHost,
+                    isSpectator: p.isSpectator, // Include spectator status
                     position: p.position,
                     velocity: p.velocity,
                     animation: p.animation,
@@ -156,7 +154,7 @@ io.on('connection', (socket) => {
                 coins: room.coins
             });
 
-            // Send current scoreboard for this room only
+            // Update scoreboard
             updateRoomScoreboard(roomId);
 
             // Notify other players about reconnection
@@ -165,10 +163,9 @@ io.on('connection', (socket) => {
             // Send updated player list to ALL players in the room
             io.to(roomId).emit('players-updated', room.players);
 
-            console.log(`✅ Player ${playerName} reconnected to room ${roomId}`);
+            console.log(`✅ Player ${playerName} reconnected to room ${roomId} as ${finalSpectatorStatus ? 'spectator' : 'player'}`);
             return;
         }
-
         // FIXED: Handle name conflicts by adding suffix instead of rejecting
         let finalPlayerName = playerName;
         let nameCounter = 1;
@@ -198,8 +195,9 @@ io.on('connection', (socket) => {
 
         const player = {
             id: socket.id,
-            name: finalPlayerName, // Use the final resolved name
+            name: finalPlayerName,
             isHost: isHost,
+            isSpectator: finalIsSpectator,
             ready: false,
             coins: 0,
             position: { x: 100, y: 200 },
@@ -266,6 +264,18 @@ io.on('connection', (socket) => {
             isHost: p.isHost
         })));
     });
+
+    socket.on('request-player-data', () => {
+        // Find which room the player is in
+        for (const [roomId, room] of rooms.entries()) {
+            if (room.players.some(p => p.id === socket.id)) {
+                socket.emit('player-data-update', room.players);
+                break;
+            }
+        }
+    });
+
+
     // Player movement
     socket.on('player-move', (data) => {
         const room = rooms.get(data.roomId);
@@ -375,11 +385,24 @@ io.on('connection', (socket) => {
 
     // Start game
     // In server.js - Fix the start-game handler
-    socket.on('start-game', (roomId) => {
+    // In server.js - Update the start-game handler to ensure spectator status is preserved
+    socket.on('start-game', (data) => {
+        const roomId = typeof data === 'string' ? data : data.roomId;
+        const hostIsSpectator = typeof data === 'object' ? data.hostIsSpectator : false;
+
         const room = rooms.get(roomId);
         if (room) {
             room.gameStarted = true;
             room.coins = generateCoinsFromMap();
+
+            // Update host spectator status if provided
+            if (hostIsSpectator !== undefined) {
+                const hostPlayer = room.players.find(p => p.isHost);
+                if (hostPlayer) {
+                    hostPlayer.isSpectator = hostIsSpectator;
+                    console.log(`🎯 Host ${hostPlayer.name} is ${hostIsSpectator ? 'spectating' : 'playing'}`);
+                }
+            }
 
             // RESET ALL PLAYER COINS AND SCOREBOARD FOR NEW GAME
             room.players.forEach(player => {
@@ -391,14 +414,13 @@ io.on('connection', (socket) => {
             room.players.forEach(player => {
                 room.scoreboard.set(player.id, {
                     id: player.id,
-                    name: player.name, // Use actual player name
+                    name: player.name,
                     coins: 0,
                     lastActive: new Date()
                 });
             });
 
-            console.log(`🎮 Game started in room ${roomId} with ${room.players.length} players - scores reset`);
-            console.log(`👥 Players:`, room.players.map(p => p.name));
+            console.log(`🎮 Game started in room ${roomId} with ${room.players.length} players`);
 
             // Update scoreboard with reset scores
             updateRoomScoreboard(roomId);
@@ -407,10 +429,9 @@ io.on('connection', (socket) => {
             io.to(roomId).emit('navigate-to-game', {
                 roomId: roomId
             });
-
-            console.log(`📢 Sent navigate-to-game to ${room.players.length} players`);
         }
     });
+
     // Add periodic game state sync for large rooms
     setInterval(() => {
         rooms.forEach((room, roomId) => {

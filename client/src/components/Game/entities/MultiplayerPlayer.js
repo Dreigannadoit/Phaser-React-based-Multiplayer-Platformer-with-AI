@@ -1,4 +1,3 @@
-// client/src/components/Game/MultiplayerPlayer.js
 export class MultiplayerPlayer {
     constructor(scene, playerData, isLocalPlayer = false) {
         this.scene = scene;
@@ -21,7 +20,7 @@ export class MultiplayerPlayer {
         this.create();
     }
 
-    // client/src/components/Game/MultiplayerPlayer.js - Update create method
+    
     create() {
         console.log(`🎮 Creating player: ${this.playerData.name} at (${this.playerData.position.x}, ${this.playerData.position.y})`);
 
