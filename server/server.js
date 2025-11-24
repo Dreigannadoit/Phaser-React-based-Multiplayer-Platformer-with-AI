@@ -6,7 +6,7 @@ const cors = require('cors');
 const app = express();
 const server = http.createServer(app);
 
-// Configure CORS for your Vite dev server (usually localhost:5173 or 3000)
+// Configure CORS
 const io = socketIo(server, {
     cors: {
         origin: ["http://localhost:5173", "http://localhost:3000"],
@@ -15,12 +15,12 @@ const io = socketIo(server, {
     }
 });
 
+// CLEAR all rooms when server starts
+const rooms = new Map();
+console.log('🧹 Server started - cleared all previous rooms');
+
 app.use(cors());
 app.use(express.json());
-
-// Store active rooms
-const rooms = new Map();
-
 
 // Room-specific scoreboard update function
 // In server.js - Fix the updateRoomScoreboard function
@@ -76,30 +76,31 @@ io.on('connection', (socket) => {
     });
 
     socket.on('join-game', (data) => {
+        // CRITICAL FIX: Prevent regular players from joining as spectators
         if (!data.isHost && data.isSpectator) {
             console.log(`🛡️ BLOCKING: Regular player ${data.playerName} tried to join as spectator`);
             data.isSpectator = false; // Force to false
         }
 
         const { roomId, playerName, isHost, isSpectator = false } = data;
+        const finalIsSpectator = isHost ? (isSpectator || false) : false;
 
         console.log(`🎮 JOIN-GAME REQUEST:`, {
             socketId: socket.id,
             playerName,
             isHost,
-            isSpectator,
+            isSpectator: finalIsSpectator, // Log the corrected value
             roomId
         });
 
-        const finalIsSpectator = isHost ? (isSpectator || false) : false;
 
         // Create room if it doesn't exist (allow host to create)
         if (!rooms.has(roomId)) {
             if (!isHost) {
                 socket.emit('join-error', 'Room does not exist');
-                console.log(`❌ Room ${roomId} doesn't exist and player is not host`);
                 return;
             }
+            // Create fresh room
             rooms.set(roomId, {
                 players: [],
                 gameStarted: false,
@@ -107,10 +108,11 @@ io.on('connection', (socket) => {
                 createdAt: new Date(),
                 scoreboard: new Map()
             });
-            console.log(`✅ Room ${roomId} created by host`);
+            console.log(`✅ Fresh room ${roomId} created by host`);
         }
 
         const room = rooms.get(roomId);
+        
         console.log(`📊 Room ${roomId} currently has ${room.players.length} players`);
 
         // Check if this socket is already in the room (reconnection case)

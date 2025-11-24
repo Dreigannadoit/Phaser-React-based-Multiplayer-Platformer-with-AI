@@ -1,4 +1,3 @@
-// client/src/components/Game/CollisionManager.js
 export class CollisionManager {
     constructor(scene) {
         this.scene = scene;

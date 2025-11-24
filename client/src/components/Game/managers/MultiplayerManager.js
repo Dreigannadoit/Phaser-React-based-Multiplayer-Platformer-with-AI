@@ -1,4 +1,3 @@
-// client/src/components/Game/MultiplayerManager.js
 class MultiplayerManager {
     constructor(roomId, existingSocket = null) {
         this.roomId = roomId;
@@ -9,37 +8,52 @@ class MultiplayerManager {
         this.hasJoined = false;
         this.isSpectator = false;
 
-        // CRITICAL FIX: Load player data from localStorage correctly
-        try {
-            const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
-            console.log('📂 Loaded player data from localStorage:', storedData);
-
-            this.playerName = storedData.playerName || 'Player';
-            this.isHost = storedData.isHost || false;
-
-            // CRITICAL FIX: Regular players CANNOT be spectators
-            // Only hosts can choose spectator mode
-            this.isSpectator = (storedData.isHost && storedData.isSpectator) || false;
-
-            console.log(`🎮 MultiplayerManager created for room ${roomId}, player: ${this.playerName}, host: ${this.isHost}, spectator: ${this.isSpectator}`);
-        } catch (error) {
-            console.error('❌ Error loading player data:', error);
-            this.playerName = 'Player';
-            this.isHost = false;
-            this.isSpectator = false; // Default to player mode
-        }
-
+        // CRITICAL: Validate session and clear stale data
+        this.validateAndCleanSession();
 
         // If socket is provided, set up listeners but don't join again
         if (this.socket) {
             this.setupSocketListeners();
-
-            // Check if we're already in this room
             if (this.socket.connected) {
                 this.checkExistingConnection();
             }
         }
     }
+
+    validateAndCleanSession() {
+        try {
+            const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
+
+            // CLEAR data if roomId doesn't match or data is stale
+            if (storedData.roomId && storedData.roomId !== this.roomId) {
+                console.log('🧹 Clearing stale player data - room mismatch');
+                localStorage.removeItem('playerData');
+                this.playerName = 'Player';
+                this.isHost = false;
+                this.isSpectator = false;
+                return;
+            }
+
+            // Only use data if roomId matches
+            if (storedData.roomId === this.roomId) {
+                this.playerName = storedData.playerName || 'Player';
+                this.isHost = storedData.isHost || false;
+                this.isSpectator = storedData.isHost && storedData.isSpectator;
+                console.log(`🎮 Using valid session data for room ${this.roomId}`);
+            } else {
+                // Fresh session
+                this.playerName = 'Player';
+                this.isHost = false;
+                this.isSpectator = false;
+            }
+
+            console.log(`🎮 MultiplayerManager - player: ${this.playerName}, host: ${this.isHost}, spectator: ${this.isSpectator}`);
+        } catch (error) {
+            console.error('❌ Error loading player data:', error);
+            this.isSpectator = false;
+        }
+    }
+
 
     checkExistingConnection() {
         console.log('🔍 Checking existing connection status...');
@@ -87,21 +101,10 @@ class MultiplayerManager {
             return;
         }
 
-        try {
-            const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
-
-            // CRITICAL FIX: Regular players CANNOT be spectators
-            if (!this.isHost) {
-                this.isSpectator = false;
-                console.log('🎯 Regular player - forcing spectator to false');
-            } else {
-                this.isSpectator = storedData.isSpectator || false;
-            }
-
-            console.log('🔄 Final spectator status:', this.isSpectator, 'isHost:', this.isHost);
-        } catch (error) {
-            console.error('❌ Error re-loading player data:', error);
-            this.isSpectator = false; // Fallback to player mode for safety
+        // CRITICAL FIX: Double-check that regular players are never spectators
+        if (!this.isHost) {
+            this.isSpectator = false;
+            console.log('🎯 Regular player - forcing spectator to false in joinGame');
         }
 
         console.log(`🎮 Joining game as ${this.playerName} (Host: ${this.isHost}, Spectator: ${this.isSpectator}) in room ${this.roomId}`);
@@ -131,22 +134,16 @@ class MultiplayerManager {
             this.playerId = data.playerId;
             this.isHost = data.isHost;
 
-            // CRITICAL FIX: Always trust the server's spectator status
-            if (data.isSpectator !== undefined) {
+            // SIMPLE FIX: Only update spectator if we're host AND server says we're spectator
+            if (this.isHost && data.isSpectator !== undefined) {
                 this.isSpectator = data.isSpectator;
-                console.log(`🎯 Updated spectator status from server: ${this.isSpectator}`);
+            } else {
+                this.isSpectator = false; // Regular players are never spectators
             }
 
-            // CRITICAL: Double-check regular players are never spectators
-            if (!this.isHost && this.isSpectator) {
-                console.error('❌ CRITICAL: Regular player marked as spectator by server - fixing');
-                this.isSpectator = false;
-            }
+            console.log(`🎯 Final status - Host: ${this.isHost}, Spectator: ${this.isSpectator}`);
 
-            console.log('✅ Player assigned:', data);
-            console.log(`🎯 Final player status - Host: ${this.isHost}, Spectator: ${this.isSpectator}`);
-
-            // Clear the connection timeout since we're connected
+            // Clear timeout
             if (this.connectionTimeout) {
                 clearTimeout(this.connectionTimeout);
             }

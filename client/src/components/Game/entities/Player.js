@@ -5,7 +5,7 @@ export class Player {
 
         // ORIGINAL MOVEMENT VALUES - no scaling
         this.speed = 160; // Original speed
-        this.jumpForce = 330; // Original jump force
+        this.jumpForce = 230; // Original jump force
 
 
         this.cursors = null;

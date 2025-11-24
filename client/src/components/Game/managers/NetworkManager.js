@@ -1,5 +1,3 @@
-import { Player } from "../entities/Player";
-
 export class NetworkManager {
     constructor(scene) {
         this.scene = scene;
@@ -8,36 +6,35 @@ export class NetworkManager {
         this.lastSentMovement = null;
     }
 
+    // client/src/components/Game/managers/NetworkManager.js
+
     update(time, delta) {
-        // CRITICAL: Don't update movement for spectators
-        const localPlayer = this.scene.playerManager.getLocalPlayer();
-        if (localPlayer && localPlayer.isSpectator) {
-            return; // Spectators don't send movement updates
+        // Handle quiz and respawning first
+        if (this.scene.quizManager.isQuizActive() || this.scene.isRespawning) {
+            return;
         }
 
-        // Throttle local player updates to reduce network traffic
+        const localPlayer = this.scene.playerManager.getLocalPlayer();
+
+        // CRITICAL: Spectators don't move or send updates
+        if (localPlayer && localPlayer.isSpectator) {
+            return;
+        }
+
+        // Update player movement (this handles input)
+        if (localPlayer && this.scene.isPlayerReady) {
+            localPlayer.update(time, delta);
+        }
+
+        // Send network updates
         const now = Date.now();
         if (now - this.lastPlayerUpdate > this.playerUpdateRate) {
             this.lastPlayerUpdate = now;
-
-            // Update and send local player movement
-            if (localPlayer && this.scene.isPlayerReady) {
-                // Just call update if it exists
-                if (localPlayer.update) {
-                    localPlayer.update(time, delta);
-                }
-
-                // Send player movement to server
-                if (this.scene.isMultiplayer && window.multiplayerManager) {
-                    this.sendPlayerMovementUpdate();
-                }
-            }
-        } else {
-            // Still update player locally but don't send network updates
-            if (localPlayer && this.scene.isPlayerReady && localPlayer.update) {
-                localPlayer.update(time, delta);
-            }
+            this.sendPlayerMovementUpdate();
         }
+
+        // Interpolate other players
+        this.scene.playerManager.interpolateOtherPlayers(delta);
     }
 
     sendPlayerMovementUpdate() {

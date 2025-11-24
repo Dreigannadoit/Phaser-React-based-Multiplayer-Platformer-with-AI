@@ -1,4 +1,3 @@
-// client/src/components/Game/Game.jsx
 import React, { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Phaser from 'phaser'
@@ -10,6 +9,7 @@ import { useSocket } from '../../context/SocketContext'
 import Scoreboard from './Scoreboard'
 import RespawnCountdown from './RespawnCountdown'
 import SpectatorPanel from './SpectatorPanel'
+import ExitGame from './ExitGame' // ADD THIS IMPORT
 
 const Game = () => {
     const { roomId } = useParams()
@@ -25,12 +25,11 @@ const Game = () => {
         const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
         setPlayerData(storedData);
 
-        if (storedData.isHost && storedData.isSpectator) {
-            setShowSpectatorPanel(true);
-            console.log('🎯 Host is in spectator mode - showing spectator panel');
-        } else {
-            setShowSpectatorPanel(false); // Ensure regular players don't see it
-        }
+        // SIMPLE CHECK: Only show panel for host spectators
+        const shouldShowPanel = storedData.isHost && storedData.isSpectator;
+        setShowSpectatorPanel(shouldShowPanel);
+
+        console.log(`🎯 Game loaded - Host: ${storedData.isHost}, Spectator: ${storedData.isSpectator}, Show Panel: ${shouldShowPanel}`);
     }, [roomId, socket]);
 
     useEffect(() => {
@@ -114,7 +113,6 @@ const Game = () => {
                     if (storedQuestions && window.quizManager) {
                         const questions = JSON.parse(storedQuestions);
                         window.quizManager.updateQuestions(questions);
-                        // console.log(`🎯 Loaded ${questions.length} questions for room ${currentRoomId}`);
                     }
                 }
             } catch (error) {
@@ -164,6 +162,9 @@ const Game = () => {
 
     return (
         <div className="game-wrapper" style={gameWrapperStyle}>
+            {/* ADD EXIT GAME COMPONENT */}
+            <ExitGame />
+
             {/* Player Stats Component - Show for ALL players (non-spectators) */}
             {!isSpectator && <PlayerStats />}
 

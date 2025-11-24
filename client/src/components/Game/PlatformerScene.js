@@ -1,7 +1,5 @@
 import Phaser from "phaser";
 import { MapManager } from "./managers/MapManager";
-import { Player } from "./entities/Player";
-import { MultiplayerPlayer } from "./entities/MultiplayerPlayer";
 import { QuizManager } from "./managers/QuizManager";
 import { CollisionManager } from "./managers/CollisionManager";
 import { PlayerManager } from "./managers/PlayerManager";
@@ -697,36 +695,31 @@ export default class PlatformerScene extends Phaser.Scene {
     setLocalPlayer(playerData) {
         console.log('🎯 Setting local player with data:', playerData);
 
-        // CRITICAL: Check if player is a spectator
-        if (playerData.isSpectator) {
-            console.log('🎯 Host is spectator, not creating player character');
+        // SIMPLE CHECK: Is this actually a spectator?
+        const isActuallySpectator = playerData.isHost && playerData.isSpectator;
+
+        if (isActuallySpectator) {
+            console.log('🎯 HOST IS SPECTATOR - setting up spectator mode');
             this.isPlayerReady = true;
 
-            try {
-                // Set up spectator camera and controls
-                this.setupSpectatorCamera();
-                this.setupSpectatorControls();
+            // Set up spectator camera and controls
+            this.setupSpectatorCamera();
+            this.setupSpectatorControls();
 
-                // Create a spectator object instead of a player
-                this.playerManager.setLocalPlayer({
-                    ...playerData,
-                    isSpectator: true,
-                    position: { x: 0, y: 0 } // Dummy position
-                });
+            // Create simple spectator object
+            this.playerManager.setLocalPlayer({
+                ...playerData,
+                isSpectator: true,
+                position: { x: 0, y: 0 }
+            });
 
-                // CRITICAL: Ensure camera is not following anything
-                this.cameras.main.stopFollow();
-            } catch (error) {
-                console.error('❌ Error setting up spectator mode:', error);
-            }
-
-            // DEBUG
-            this.debugPlayerCreation();
+            // Stop camera from following anything
+            this.cameras.main.stopFollow();
             return;
         }
 
-        // Regular player setup for non-spectators
-        console.log('🎯 Creating player character (regular player or host playing)');
+        // REGULAR PLAYER (including host who chose to play)
+        console.log('🎯 Creating regular player character');
         const spawnPosition = this.mapManager.getSpawnPosition();
         const playerDataWithSpawn = {
             ...playerData,
@@ -738,18 +731,12 @@ export default class PlatformerScene extends Phaser.Scene {
 
         this.playerManager.setLocalPlayer(playerDataWithSpawn);
 
-        // Make camera follow the regular player
+        // Make camera follow the player
         const localPlayer = this.playerManager.getLocalPlayer();
         if (localPlayer && localPlayer.getSprite()) {
             this.cameras.main.startFollow(localPlayer.getSprite());
-
-            // CRITICAL FIX: Set up collisions after player is created
-            console.log('🔄 Setting up player collisions...');
             this.collisionManager.setupPlayerCollisions(localPlayer);
         }
-
-        // DEBUG
-        this.debugPlayerCreation();
     }
 
 
@@ -921,22 +908,6 @@ export default class PlatformerScene extends Phaser.Scene {
         // Check for death and start respawn process (only for regular players)
         if (!this.playerManager.isLocalPlayerSpectator() && this.lives <= 0 && !this.isRespawning) {
             this.handlePlayerDeath();
-        }
-    }
-
-    debugPlayerCreation() {
-        const localPlayer = this.playerManager.getLocalPlayer();
-        console.log('🔍 PLAYER CREATION DEBUG:');
-        console.log('- Local Player:', localPlayer);
-        console.log('- Is Spectator:', localPlayer?.isSpectator);
-        console.log('- Has Update Method:', !!localPlayer?.update);
-        console.log('- Player Ready:', this.isPlayerReady);
-
-        if (localPlayer && localPlayer.getSprite) {
-            const sprite = localPlayer.getSprite();
-            console.log('- Sprite:', sprite);
-            console.log('- Sprite Active:', sprite?.active);
-            console.log('- Has Physics Body:', !!sprite?.body);
         }
     }
 }

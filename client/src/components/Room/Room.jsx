@@ -10,13 +10,22 @@ const Room = () => {
     const [isHost, setIsHost] = useState(false)
     const [playerName, setPlayerName] = useState('')
     const [error, setError] = useState('')
-    const [isSpectator, setIsSpectator] = useState(true);
+    const [isSpectator, setIsSpectator] = useState(false);
 
     const { socket } = useSocket();
     const [gameQuestions, setGameQuestions] = useState([]);
     const [hasEnoughQuestions, setHasEnoughQuestions] = useState(false);
 
     useEffect(() => {
+        const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
+        if (storedData.roomId) {
+            console.log('🧹 Found previous session data, clearing...');
+            localStorage.removeItem('playerData');
+            localStorage.removeItem('gameState');
+            localStorage.removeItem('playerProgress');
+        }
+
+
         // Load questions from localStorage on component mount
         const loadQuestions = () => {
             try {
@@ -68,41 +77,35 @@ const Room = () => {
         if (storedPlayerData.roomId === roomId) {
             // HOSTS: Use stored spectator preference
             // REGULAR PLAYERS: Always false (they can't be spectators)
-            const shouldBeSpectator = host ?
-                (storedPlayerData.isSpectator !== undefined ? storedPlayerData.isSpectator : true) :
+            const shouldBeSpectator = host ? 
+                (storedPlayerData.isSpectator !== undefined ? storedPlayerData.isSpectator : true) : 
                 false;
-
+            
             setIsSpectator(shouldBeSpectator);
             console.log('🎯 Loaded spectator preference from storage:', shouldBeSpectator, 'isHost:', host);
         } else {
-            // For new hosts, default to spectator mode
-            // For new players, default to player mode (false)
+            // CRITICAL FIX: For new players, ALWAYS default to player mode (false)
+            // For new hosts, default to spectator mode (true)
             const defaultSpectator = host ? true : false;
             setIsSpectator(defaultSpectator);
             console.log('🎯 New player - default spectator:', defaultSpectator, 'isHost:', host);
         }
 
-        let finalSpectatorStatus = host ? isSpectator : false;
-
-        if (!host && finalSpectatorStatus) {
-            console.error('❌ CRITICAL: Regular player trying to join as spectator - forcing to false');
-            finalSpectatorStatus = false;
-        }
+        const finalSpectatorStatus = host ? isSpectator : false;
 
         console.log(' Connecting to room...', {
             roomId,
             playerName: decodedName,
             isHost: host,
-            isSpectator: finalSpectatorStatus
+            isSpectator: finalSpectatorStatus  
         })
-
 
         // Join room immediately with player info using shared socket
         socket.emit('join-game', {
             roomId,
             playerName: decodedName,
             isHost: host,
-            isSpectator: finalSpectatorStatus
+            isSpectator: finalSpectatorStatus  
         })
 
         // Listen for player assignment
@@ -204,7 +207,7 @@ const Room = () => {
                 socket.off('connect_error')
             }
         }
-    }, [socket, roomId, navigate, location.search, location.state])
+    }, [socket, roomId, navigate, location.search, location.state, isSpectator])
 
     const navigateToPDFUpload = () => {
         navigate(`/pdf-upload/${roomId}`, {

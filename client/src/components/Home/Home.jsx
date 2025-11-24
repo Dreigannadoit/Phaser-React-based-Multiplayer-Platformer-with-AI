@@ -16,6 +16,29 @@ const Home = () => {
     const { socket } = useSocket()
 
     useEffect(() => {
+        // Clear game-related localStorage when returning to home
+        const clearStaleGameData = () => {
+            const currentPath = window.location.pathname;
+            if (currentPath === '/' || currentPath === '/home') {
+                console.log('🧹 Clearing stale game data on home navigation');
+                localStorage.removeItem('playerData');
+                localStorage.removeItem('gameState');
+                localStorage.removeItem('playerProgress');
+            }
+        };
+
+        // Run on initial load
+        clearStaleGameData();
+
+        // Listen for navigation
+        window.addEventListener('popstate', clearStaleGameData);
+
+        return () => {
+            window.removeEventListener('popstate', clearStaleGameData);
+        };
+    }, []);
+
+    useEffect(() => {
         // Load recent rooms from localStorage
         const savedRooms = localStorage.getItem('recentRooms')
         if (savedRooms) {

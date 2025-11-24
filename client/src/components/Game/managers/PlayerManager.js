@@ -15,35 +15,35 @@ export class PlayerManager {
     setLocalPlayer(playerData) {
         console.log('🎯 PlayerManager setting local player:', playerData);
 
-        // CRITICAL: Handle spectator case
+        // CRITICAL: Handle spectator case FIRST
         if (playerData.isSpectator) {
             console.log('🎯 Creating spectator object (no physics body)');
             this.localPlayer = {
                 playerData: playerData,
                 isSpectator: true,
                 getSprite: () => null,
-                update: () => { }, // RESTORE THIS - empty update for spectators
-                getNetworkAnimation: () => 'idle',
-                takeDamage: () => { }
+                update: () => { }, // No-op for spectators
+                getNetworkAnimation: () => 'idle'
             };
-            this.scene.isPlayerReady = true;
+            this.scene.isPlayerReady = true; // IMPORTANT: Set scene as ready
             return;
         }
 
-        // Regular player creation - create actual Player instance with movement
-        console.log('🎯 Creating regular player character WITH MOVEMENT');
+        // Regular player creation
+        console.log('🎯 Creating regular player character');
         const spawnPosition = this.scene.mapManager.getSpawnPosition();
 
-        // Create the actual Player class instance (this has update method for movement)
+        // Create the actual Player instance
         const player = new Player(this.scene, spawnPosition.x, spawnPosition.y);
         player.playerData = playerData;
         player.isSpectator = false;
 
         this.localPlayer = player;
-        this.scene.isPlayerReady = true;
+        this.scene.isPlayerReady = true; // IMPORTANT: Set scene as ready
 
         console.log('✅ Regular player created with physics body and movement controls');
     }
+
 
     convertToControlledPlayer() {
         // CRITICAL: Don't convert spectators
