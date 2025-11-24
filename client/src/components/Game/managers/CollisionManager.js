@@ -6,35 +6,49 @@ export class CollisionManager {
     }
 
     setupPlayerCollisions(player) {
-        if (!player || !player.getSprite) {
-            console.warn('Player not ready for collisions');
+        if (!player) {
+            console.warn('❌ Player is null for collision setup');
             return;
         }
 
-        const sprite = player.getSprite();
+        if (player.isSpectator) {
+            console.log('🎯 Skipping collision setup for spectator');
+            return;
+        }
+
+        const sprite = player.getSprite ? player.getSprite() : null;
         if (!sprite) {
-            console.warn('Player sprite not available');
+            console.warn('❌ Player sprite not available for collisions');
             return;
         }
 
         console.log('🔄 Setting up player collisions...');
 
-        // Clear any existing colliders
+        // Clear any existing colliders for this player
         this.scene.physics.world.colliders.destroy();
 
         // Set up ground collisions
-        this.scene.physics.add.collider(sprite, this.mapManager.getCollisionObjects());
+        const collisionObjects = this.mapManager.getCollisionObjects();
+        if (collisionObjects) {
+            this.scene.physics.add.collider(sprite, collisionObjects);
+            console.log('✅ Ground collisions set up');
+        }
 
-        // Set up coin collection with proper overlap
+        // Set up coin collection
         const coins = this.mapManager.getCoins();
-        console.log(`💰 Coins available for collision: ${coins.getLength()}`);
-
-        this.scene.physics.add.overlap(sprite, coins, this.collectCoin.bind(this), this.checkCoinOverlap.bind(this), this);
+        if (coins && coins.getLength() > 0) {
+            this.scene.physics.add.overlap(sprite, coins, this.collectCoin.bind(this), this.checkCoinOverlap.bind(this), this);
+            console.log(`💰 Coin collisions set up (${coins.getLength()} coins)`);
+        }
 
         // Set up spike damage
-        this.scene.physics.add.overlap(sprite, this.mapManager.getSpikes(), this.hitSpike.bind(this), null, this);
+        const spikes = this.mapManager.getSpikes();
+        if (spikes) {
+            this.scene.physics.add.overlap(sprite, spikes, this.hitSpike.bind(this), null, this);
+            console.log('💥 Spike collisions set up');
+        }
 
-        console.log('✅ Collisions set up for player');
+        console.log('✅ All collisions set up for player');
     }
 
     // Custom overlap check for coins
@@ -130,18 +144,26 @@ export class CollisionManager {
     // Helper method to get player instance from sprite
     getPlayerFromSprite(sprite) {
         const localPlayer = this.scene.playerManager.getLocalPlayer();
-        if (localPlayer && localPlayer.getSprite() === sprite) {
+
+        // If localPlayer is the actual Player instance
+        if (localPlayer && localPlayer.getSprite && localPlayer.getSprite() === sprite) {
+            return localPlayer;
+        }
+
+        // If localPlayer is a wrapper object
+        if (localPlayer && localPlayer.getSprite && localPlayer.getSprite() === sprite) {
             return localPlayer;
         }
 
         // Check other players if needed
         const otherPlayers = this.scene.playerManager.getOtherPlayers();
         for (let [playerId, player] of otherPlayers) {
-            if (player.getSprite() === sprite) {
+            if (player.getSprite && player.getSprite() === sprite) {
                 return player;
             }
         }
 
+        console.warn('❌ Could not find player instance for sprite');
         return null;
     }
 }

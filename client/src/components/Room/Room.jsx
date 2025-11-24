@@ -62,36 +62,47 @@ const Room = () => {
         setIsHost(host)
 
         // CRITICAL FIX: Load spectator preference from localStorage
-        if (host) {
-            // Host: Load spectator preference from localStorage
-            const storedPlayerData = JSON.parse(localStorage.getItem('playerData') || '{}');
-            if (storedPlayerData.roomId === roomId && storedPlayerData.isHost) {
-                setIsSpectator(storedPlayerData.isSpectator !== undefined ? storedPlayerData.isSpectator : true);
-                console.log('🎯 Loaded spectator preference from storage:', storedPlayerData.isSpectator);
-            } else {
-                // For new hosts, default to spectator mode
-                setIsSpectator(true);
-                console.log('🎯 New host - defaulting to spectator mode');
-            }
+        const storedPlayerData = JSON.parse(localStorage.getItem('playerData') || '{}');
+
+        // If we have stored data for this room, use it
+        if (storedPlayerData.roomId === roomId) {
+            // HOSTS: Use stored spectator preference
+            // REGULAR PLAYERS: Always false (they can't be spectators)
+            const shouldBeSpectator = host ?
+                (storedPlayerData.isSpectator !== undefined ? storedPlayerData.isSpectator : true) :
+                false;
+
+            setIsSpectator(shouldBeSpectator);
+            console.log('🎯 Loaded spectator preference from storage:', shouldBeSpectator, 'isHost:', host);
         } else {
-            // Regular players: ALWAYS false for spectator mode
-            setIsSpectator(false);
-            console.log('🎯 Regular player - forcing spectator mode to false');
+            // For new hosts, default to spectator mode
+            // For new players, default to player mode (false)
+            const defaultSpectator = host ? true : false;
+            setIsSpectator(defaultSpectator);
+            console.log('🎯 New player - default spectator:', defaultSpectator, 'isHost:', host);
+        }
+
+        let finalSpectatorStatus = host ? isSpectator : false;
+
+        if (!host && finalSpectatorStatus) {
+            console.error('❌ CRITICAL: Regular player trying to join as spectator - forcing to false');
+            finalSpectatorStatus = false;
         }
 
         console.log(' Connecting to room...', {
             roomId,
             playerName: decodedName,
             isHost: host,
-            isSpectator: isSpectator
+            isSpectator: finalSpectatorStatus
         })
+
 
         // Join room immediately with player info using shared socket
         socket.emit('join-game', {
             roomId,
             playerName: decodedName,
             isHost: host,
-            isSpectator: isSpectator
+            isSpectator: finalSpectatorStatus
         })
 
         // Listen for player assignment
@@ -209,7 +220,6 @@ const Room = () => {
         localStorage.removeItem('gameQuestions');
     };
 
-    // In Room.jsx - Make sure handleStartGame saves spectator status
     const handleStartGame = () => {
         if (!hasEnoughQuestions && isHost) {
             alert('Please add at least 5 questions before starting the game! Use the "Generate Questions from PDF" button.');
@@ -220,12 +230,12 @@ const Room = () => {
             console.log('Starting game for room:', roomId);
             console.log('🎯 Host spectator mode:', isSpectator);
 
-            // CRITICAL: Store player data with spectator choice
+            // CRITICAL FIX: Store player data with spectator choice
             const playerDataToStore = {
                 playerName: playerName,
                 isHost: isHost,
                 roomId: roomId,
-                isSpectator: isSpectator // Make sure this is saved
+                isSpectator: isSpectator // This should be false when "Player" is selected
             };
             localStorage.setItem('playerData', JSON.stringify(playerDataToStore));
 
@@ -466,9 +476,20 @@ const Room = () => {
                                 </span>
                             </label>
                         </div>
+                        <p className="role-help">
+                            {isSpectator
+                                ? "You will watch the game as a spectator with free camera control."
+                                : "You will play the game alongside other players."}
+                        </p>
                     </div>
                 )}
 
+                {!isHost && (
+                    <div className="player-role-info">
+                        <h3>🎮 Playing as Player</h3>
+                        <p>You will control a character in the game world.</p>
+                    </div>
+                )}
 
                 {!isHost && currentPlayer && (
                     <div className="player-waiting">

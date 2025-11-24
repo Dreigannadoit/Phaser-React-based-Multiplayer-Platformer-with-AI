@@ -13,14 +13,14 @@ class MultiplayerManager {
         try {
             const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
             console.log('📂 Loaded player data from localStorage:', storedData);
-            
+
             this.playerName = storedData.playerName || 'Player';
             this.isHost = storedData.isHost || false;
-            
+
             // CRITICAL FIX: Regular players CANNOT be spectators
             // Only hosts can choose spectator mode
             this.isSpectator = (storedData.isHost && storedData.isSpectator) || false;
-            
+
             console.log(`🎮 MultiplayerManager created for room ${roomId}, player: ${this.playerName}, host: ${this.isHost}, spectator: ${this.isSpectator}`);
         } catch (error) {
             console.error('❌ Error loading player data:', error);
@@ -81,8 +81,7 @@ class MultiplayerManager {
         this.joinGame();
     }
 
-
-     joinGame() {
+    joinGame() {
         if (this.hasJoined) {
             console.log('⚠️ Already joined game, skipping re-join');
             return;
@@ -90,13 +89,19 @@ class MultiplayerManager {
 
         try {
             const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
-            
-            this.isSpectator = (storedData.isHost && storedData.isSpectator) || false;
-            
-            console.log('🔄 Re-loaded spectator status from localStorage:', this.isSpectator);
+
+            // CRITICAL FIX: Regular players CANNOT be spectators
+            if (!this.isHost) {
+                this.isSpectator = false;
+                console.log('🎯 Regular player - forcing spectator to false');
+            } else {
+                this.isSpectator = storedData.isSpectator || false;
+            }
+
+            console.log('🔄 Final spectator status:', this.isSpectator, 'isHost:', this.isHost);
         } catch (error) {
             console.error('❌ Error re-loading player data:', error);
-            this.isSpectator = false; // Fallback to player mode
+            this.isSpectator = false; // Fallback to player mode for safety
         }
 
         console.log(`🎮 Joining game as ${this.playerName} (Host: ${this.isHost}, Spectator: ${this.isSpectator}) in room ${this.roomId}`);
@@ -105,7 +110,7 @@ class MultiplayerManager {
             roomId: this.roomId,
             playerName: this.playerName,
             isHost: this.isHost,
-            isSpectator: this.isSpectator // This should be false for regular players
+            isSpectator: this.isSpectator
         });
 
         this.hasJoined = true;
@@ -126,10 +131,16 @@ class MultiplayerManager {
             this.playerId = data.playerId;
             this.isHost = data.isHost;
 
-            // CRITICAL FIX: Update spectator status from server response
+            // CRITICAL FIX: Always trust the server's spectator status
             if (data.isSpectator !== undefined) {
                 this.isSpectator = data.isSpectator;
                 console.log(`🎯 Updated spectator status from server: ${this.isSpectator}`);
+            }
+
+            // CRITICAL: Double-check regular players are never spectators
+            if (!this.isHost && this.isSpectator) {
+                console.error('❌ CRITICAL: Regular player marked as spectator by server - fixing');
+                this.isSpectator = false;
             }
 
             console.log('✅ Player assigned:', data);
@@ -301,8 +312,7 @@ class MultiplayerManager {
     sendPlayerMovement(position, velocity, animation) {
         // SAFETY CHECK: Don't send movement if spectator
         if (this.isSpectator) {
-            console.log('🎯 Spectator mode - skipping movement update');
-            return;
+            return; // Silent return for spectators
         }
 
         if (!this.socket || !this.playerId) {

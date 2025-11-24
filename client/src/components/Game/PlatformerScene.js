@@ -156,7 +156,6 @@ export default class PlatformerScene extends Phaser.Scene {
 
     create() {
         this.resetGameState();
-
         // Initialize managers
         this.collisionManager = new CollisionManager(this);
         this.playerManager = new PlayerManager(this);
@@ -316,10 +315,13 @@ export default class PlatformerScene extends Phaser.Scene {
             return; // Don't update game logic while respawning
         }
 
+        // DEBUG: Log movement updates (remove after fixing)
+        // this.debugPlayerMovement();
+
         // Emit game state to React component
         this.emitGameStateUpdate();
 
-        // Update network and players
+        // Update network and players - NetworkManager now handles spectators internally
         this.networkManager.update(time, delta);
         this.playerManager.interpolateOtherPlayers(delta);
 
@@ -328,10 +330,13 @@ export default class PlatformerScene extends Phaser.Scene {
         this.uiManager.updateHUDPosition();
         this.updateParallaxBackgrounds();
 
-        // this.debugPlayerNames();
+        // NEW: Update spectator controls if in spectator mode
+        if (this.playerManager.isLocalPlayerSpectator()) {
+            this.updateSpectatorControls(delta);
+        }
 
-        // NEW: Check for death and start respawn process
-        if (this.lives <= 0 && !this.isRespawning) {
+        // Check for death and start respawn process (only for regular players)
+        if (!this.playerManager.isLocalPlayerSpectator() && this.lives <= 0 && !this.isRespawning) {
             this.handlePlayerDeath();
         }
     }
@@ -697,16 +702,26 @@ export default class PlatformerScene extends Phaser.Scene {
             console.log('🎯 Host is spectator, not creating player character');
             this.isPlayerReady = true;
 
-            // Set up spectator camera and controls
-            this.setupSpectatorCamera();
-            this.setupSpectatorControls();
+            try {
+                // Set up spectator camera and controls
+                this.setupSpectatorCamera();
+                this.setupSpectatorControls();
 
-            // Create a spectator object instead of a player
-            this.playerManager.setLocalPlayer({
-                ...playerData,
-                isSpectator: true,
-                position: { x: 0, y: 0 } // Dummy position
-            });
+                // Create a spectator object instead of a player
+                this.playerManager.setLocalPlayer({
+                    ...playerData,
+                    isSpectator: true,
+                    position: { x: 0, y: 0 } // Dummy position
+                });
+
+                // CRITICAL: Ensure camera is not following anything
+                this.cameras.main.stopFollow();
+            } catch (error) {
+                console.error('❌ Error setting up spectator mode:', error);
+            }
+
+            // DEBUG
+            this.debugPlayerCreation();
             return;
         }
 
@@ -722,7 +737,21 @@ export default class PlatformerScene extends Phaser.Scene {
         };
 
         this.playerManager.setLocalPlayer(playerDataWithSpawn);
+
+        // Make camera follow the regular player
+        const localPlayer = this.playerManager.getLocalPlayer();
+        if (localPlayer && localPlayer.getSprite()) {
+            this.cameras.main.startFollow(localPlayer.getSprite());
+
+            // CRITICAL FIX: Set up collisions after player is created
+            console.log('🔄 Setting up player collisions...');
+            this.collisionManager.setupPlayerCollisions(localPlayer);
+        }
+
+        // DEBUG
+        this.debugPlayerCreation();
     }
+
 
     setupSpectatorCamera() {
         console.log('🎯 Setting up spectator camera');
@@ -730,15 +759,45 @@ export default class PlatformerScene extends Phaser.Scene {
         // Stop following any player
         this.cameras.main.stopFollow();
 
-        // Center camera on the map
-        const mapBounds = this.mapManager.getMapBounds();
-        const mapCenterX = mapBounds.width / 2;
-        const mapCenterY = mapBounds.height / 2;
+        // Get map bounds safely
+        let mapCenterX, mapCenterY;
+
+        try {
+            const mapBounds = this.mapManager.getMapBounds();
+            mapCenterX = mapBounds.width / 2;
+            mapCenterY = mapBounds.height / 2;
+            console.log(`🎯 Centering camera on map: (${mapCenterX}, ${mapCenterY})`);
+        } catch (error) {
+            console.warn('❌ Could not get map bounds, using default center');
+            mapCenterX = 400; // Default center
+            mapCenterY = 300; // Default center
+        }
 
         this.cameras.main.centerOn(mapCenterX, mapCenterY);
         this.cameras.main.setZoom(1.2); // Comfortable zoom level for spectators
 
         console.log('🎯 Spectator camera ready - use mouse to pan, scroll to zoom');
+    }
+
+    updateSpectatorControls(delta) {
+        if (!this.cursorKeys) return;
+
+        const camera = this.cameras.main;
+        const speed = 5 * (1 / camera.zoom); // Speed relative to zoom level
+
+        // Keyboard controls for spectator
+        if (this.cursorKeys.left.isDown) {
+            camera.scrollX -= speed;
+        }
+        if (this.cursorKeys.right.isDown) {
+            camera.scrollX += speed;
+        }
+        if (this.cursorKeys.up.isDown) {
+            camera.scrollY -= speed;
+        }
+        if (this.cursorKeys.down.isDown) {
+            camera.scrollY += speed;
+        }
     }
 
     setupSpectatorControls() {
@@ -799,11 +858,85 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     updatePlayerCoins(data) {
-        console.log(`💰 Player ${data.playerName} now has ${data.coins} coins`);
+        // console.log(`💰 Player ${data.playerName} now has ${data.coins} coins`);
 
         // If this is our local player, update the coins
         if (data.playerId === this.playerManager.getLocalPlayer()?.playerData?.id) {
             this.coinsCollected = data.coins;
+        }
+    }
+
+    // In PlatformerScene.js - Add debug method
+    debugPlayerMovement() {
+        const localPlayer = this.playerManager.getLocalPlayer();
+        console.log('🎮 MOVEMENT DEBUG:');
+        console.log('- Local Player:', localPlayer);
+        console.log('- Is Spectator:', localPlayer?.isSpectator);
+        console.log('- Has Update Method:', !!localPlayer?.update);
+        console.log('- Sprite Active:', localPlayer?.getSprite?.()?.active);
+        console.log('- Sprite Body:', localPlayer?.getSprite?.()?.body);
+        console.log('- Cursors:', !!this.input?.keyboard);
+
+        // Check input state
+        if (this.input?.keyboard) {
+            const cursors = this.input.keyboard.createCursorKeys();
+            console.log('- Left Key:', cursors.left.isDown);
+            console.log('- Right Key:', cursors.right.isDown);
+            console.log('- Up Key:', cursors.up.isDown);
+        }
+    }
+
+    // Call this in update method temporarily
+    update(time, delta) {
+        if (this.quizManager.isQuizActive()) {
+            return;
+        }
+
+        // Handle respawn countdown
+        if (this.isRespawning) {
+            this.updateRespawnTimer(delta);
+            return; // Don't update game logic while respawning
+        }
+
+        // DEBUG: Log movement updates (remove after fixing)
+        // this.debugPlayerMovement();
+
+        // Emit game state to React component
+        this.emitGameStateUpdate();
+
+        // Update network and players - NetworkManager now handles spectators internally
+        this.networkManager.update(time, delta);
+        this.playerManager.interpolateOtherPlayers(delta);
+
+        // Update UI and backgrounds
+        this.uiManager.updateHUD();
+        this.uiManager.updateHUDPosition();
+        this.updateParallaxBackgrounds();
+
+        // NEW: Update spectator controls if in spectator mode
+        if (this.playerManager.isLocalPlayerSpectator()) {
+            this.updateSpectatorControls(delta);
+        }
+
+        // Check for death and start respawn process (only for regular players)
+        if (!this.playerManager.isLocalPlayerSpectator() && this.lives <= 0 && !this.isRespawning) {
+            this.handlePlayerDeath();
+        }
+    }
+
+    debugPlayerCreation() {
+        const localPlayer = this.playerManager.getLocalPlayer();
+        console.log('🔍 PLAYER CREATION DEBUG:');
+        console.log('- Local Player:', localPlayer);
+        console.log('- Is Spectator:', localPlayer?.isSpectator);
+        console.log('- Has Update Method:', !!localPlayer?.update);
+        console.log('- Player Ready:', this.isPlayerReady);
+
+        if (localPlayer && localPlayer.getSprite) {
+            const sprite = localPlayer.getSprite();
+            console.log('- Sprite:', sprite);
+            console.log('- Sprite Active:', sprite?.active);
+            console.log('- Has Physics Body:', !!sprite?.body);
         }
     }
 }

@@ -17,6 +17,21 @@ export class MapManager {
         this.scene.load.image('tiles', `${spritesPath}world_tileset.png`);
     }
 
+
+    getMapBounds() {
+        if (!this.map) {
+            console.warn('❌ Map not loaded, returning default bounds');
+            return { width: 800, height: 600 };
+        }
+
+        // Get the actual map dimensions from Tiled
+        const width = this.map.widthInPixels || 800;
+        const height = this.map.heightInPixels || 600;
+
+        console.log(`🗺️ Map bounds: ${width}x${height}`);
+        return { width, height };
+    }
+
     create() {
         // Create tilemap
         const map = this.scene.make.tilemap({ key: 'map' });
@@ -72,14 +87,14 @@ export class MapManager {
         }
     }
 
-     extractSpawnArea(map) {
+    extractSpawnArea(map) {
         const entityLayer = map.getObjectLayer('entity');
-        
+
         if (entityLayer && entityLayer.objects) {
             entityLayer.objects.forEach(obj => {
                 if (obj.type === 'spawnArea' || obj.class === 'spawnArea') {
                     console.log('🎯 Found spawn area:', obj);
-                    
+
                     this.spawnArea = {
                         x: obj.x,
                         y: obj.y,
@@ -87,7 +102,7 @@ export class MapManager {
                         height: obj.height || 0,
                         isPoint: obj.point || false
                     };
-                    
+
                     // If it's a point object, we'll use it as the exact spawn point
                     if (this.spawnArea.isPoint) {
                         console.log(`📍 Spawn point at (${this.spawnArea.x}, ${this.spawnArea.y})`);
@@ -97,7 +112,7 @@ export class MapManager {
                 }
             });
         }
-         // Fallback to default spawn if no spawn area found
+        // Fallback to default spawn if no spawn area found
         if (!this.spawnArea) {
             console.warn('⚠️ No spawn area found in map, using default position');
             this.spawnArea = {
@@ -181,14 +196,14 @@ export class MapManager {
         }
     }
     getCollisionObjects() {
-        return this.collisionObjects;
+        return this.collisionObjects || [];
     }
 
     getCoins() {
-        return this.coins;
+        return this.coins || this.physics.add.group();
     }
 
     getSpikes() {
-        return this.spikes;
+        return this.spikes || [];
     }
 }

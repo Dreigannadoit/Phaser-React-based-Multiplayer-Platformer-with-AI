@@ -38,6 +38,7 @@ const Game = () => {
         setPlayerData(storedData);
 
         // CRITICAL FIX: Only host spectators get the panel
+        // Check both isHost AND isSpectator
         if (storedData.isHost && storedData.isSpectator) {
             setShowSpectatorPanel(true);
             console.log('🎯 Host is in spectator mode - showing spectator panel');

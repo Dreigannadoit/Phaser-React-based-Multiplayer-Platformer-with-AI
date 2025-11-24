@@ -1,4 +1,5 @@
-// client/src/components/Game/managers/NetworkManager.js
+import { Player } from "../entities/Player";
+
 export class NetworkManager {
     constructor(scene) {
         this.scene = scene;
@@ -20,8 +21,11 @@ export class NetworkManager {
             this.lastPlayerUpdate = now;
 
             // Update and send local player movement
-            if (localPlayer && localPlayer.update && this.scene.isPlayerReady) {
-                localPlayer.update(time, delta);
+            if (localPlayer && this.scene.isPlayerReady) {
+                // Just call update if it exists
+                if (localPlayer.update) {
+                    localPlayer.update(time, delta);
+                }
 
                 // Send player movement to server
                 if (this.scene.isMultiplayer && window.multiplayerManager) {
@@ -30,7 +34,7 @@ export class NetworkManager {
             }
         } else {
             // Still update player locally but don't send network updates
-            if (localPlayer && localPlayer.update && this.scene.isPlayerReady) {
+            if (localPlayer && this.scene.isPlayerReady && localPlayer.update) {
                 localPlayer.update(time, delta);
             }
         }
@@ -41,8 +45,7 @@ export class NetworkManager {
 
         // CRITICAL: Double-check spectator status
         if (!localPlayer || localPlayer.isSpectator) {
-            console.log('🎯 Spectator mode - skipping movement update');
-            return;
+            return; // Spectators don't send movement
         }
 
         const sprite = localPlayer.getSprite();
@@ -67,11 +70,6 @@ export class NetworkManager {
 
         // Only send if something changed significantly
         if (this.shouldSendMovementUpdate(position, velocity, animation)) {
-            console.log(`📤 Sending movement update:`, {
-                x: position.x,
-                y: position.y,
-                animation: animation
-            });
             window.multiplayerManager.sendPlayerMovement(position, velocity, animation);
         }
     }

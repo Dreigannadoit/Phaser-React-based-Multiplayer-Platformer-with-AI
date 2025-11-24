@@ -76,6 +76,11 @@ io.on('connection', (socket) => {
     });
 
     socket.on('join-game', (data) => {
+        if (!data.isHost && data.isSpectator) {
+            console.log(`🛡️ BLOCKING: Regular player ${data.playerName} tried to join as spectator`);
+            data.isSpectator = false; // Force to false
+        }
+
         const { roomId, playerName, isHost, isSpectator = false } = data;
 
         console.log(`🎮 JOIN-GAME REQUEST:`, {
@@ -117,19 +122,21 @@ io.on('connection', (socket) => {
             console.log(`🔄 Player ${oldPlayer.name} reconnecting to room ${roomId}`);
             console.log(`🎯 Previous spectator: ${oldPlayer.isSpectator}, New spectator: ${isSpectator}`);
 
-            // CRITICAL FIX: Preserve the original spectator status unless explicitly changed
-            // Only update spectator status if it's provided and different
-            const finalSpectatorStatus = (isSpectator !== undefined) ? isSpectator : oldPlayer.isSpectator;
+            // CRITICAL FIX: Regular players CANNOT become spectators on reconnection
+            const finalSpectatorStatus = isHost ?
+                (isSpectator !== undefined ? isSpectator : oldPlayer.isSpectator) :
+                false;
+
+            console.log(`🎯 Final reconnection spectator status: ${finalSpectatorStatus}`);
 
             room.players[existingPlayerIndex] = {
                 ...oldPlayer,
-                isSpectator: finalSpectatorStatus, // Preserve or update spectator status
-                isHost: isHost, // Update host status if needed
+                isSpectator: finalSpectatorStatus, // Force regular players to false
+                isHost: isHost,
                 position: { x: 100, y: 200 },
                 velocity: { x: 0, y: 0 },
                 animation: 'idle'
             };
-
             // Send player assignment with updated data
             socket.emit('player-assigned', {
                 playerId: socket.id,

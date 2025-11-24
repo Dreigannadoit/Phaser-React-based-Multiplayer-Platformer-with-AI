@@ -10,61 +10,39 @@ export class PlayerManager {
         this.maxPlayers = 50;
     }
 
-    setLocalPlayer(playerData) {
-        console.log('🎯 Setting local player:', playerData);
+    // client/src/components/Game/managers/PlayerManager.js
 
-        // CRITICAL: Check if player is spectator
+    setLocalPlayer(playerData) {
+        console.log('🎯 PlayerManager setting local player:', playerData);
+
+        // CRITICAL: Handle spectator case
         if (playerData.isSpectator) {
-            console.log('🎯 Local player is spectator - creating spectator object');
+            console.log('🎯 Creating spectator object (no physics body)');
             this.localPlayer = {
                 playerData: playerData,
                 isSpectator: true,
                 getSprite: () => null,
-                update: () => {}, // No-op for spectators
+                update: () => { }, // RESTORE THIS - empty update for spectators
                 getNetworkAnimation: () => 'idle',
-                destroy: () => {} // No-op destroy
+                takeDamage: () => { }
             };
             this.scene.isPlayerReady = true;
             return;
         }
 
-        if (!playerData || !playerData.position) {
-            console.error('❌ Invalid player data received:', playerData);
+        // Regular player creation - create actual Player instance with movement
+        console.log('🎯 Creating regular player character WITH MOVEMENT');
+        const spawnPosition = this.scene.mapManager.getSpawnPosition();
 
-            // USE SPAWN AREA FOR DEFAULT POSITION
-            const spawnPosition = this.scene.mapManager.getSpawnPosition();
+        // Create the actual Player class instance (this has update method for movement)
+        const player = new Player(this.scene, spawnPosition.x, spawnPosition.y);
+        player.playerData = playerData;
+        player.isSpectator = false;
 
-            playerData = {
-                id: 'local-player',
-                name: 'Player',
-                position: spawnPosition, // Use spawn area position
-                velocity: { x: 0, y: 0 },
-                animation: 'idle',
-                color: 0xff6b6b
-            };
-        }
-
-        // Create local player as MultiplayerPlayer first
-        this.localPlayer = new MultiplayerPlayer(this.scene, playerData, true);
-
-        if (!this.localPlayer.getSprite()) {
-            console.error('❌ Failed to create player sprite');
-            return;
-        }
-
-        // Set up collisions for local player
-        this.scene.collisionManager.setupPlayerCollisions(this.localPlayer);
-
-        // Make camera follow local player
-        this.scene.cameras.main.startFollow(this.localPlayer.getSprite());
-
-        // Convert to controlled player for input handling
-        this.convertToControlledPlayer();
-
-        // MARK PLAYER AS READY
+        this.localPlayer = player;
         this.scene.isPlayerReady = true;
 
-        console.log('✅ Local player setup complete');
+        console.log('✅ Regular player created with physics body and movement controls');
     }
 
     convertToControlledPlayer() {
@@ -100,7 +78,7 @@ export class PlayerManager {
             this.localPlayer.getSprite().body.enable = true;
         }
     }
-    
+
     updateOtherPlayer(data) {
         const { playerId, position, velocity, animation, timestamp, playerName } = data;
 
@@ -138,7 +116,7 @@ export class PlayerManager {
             if (playerName && otherPlayer.playerData.name !== playerName) {
                 console.log(`🔄 Updating player ${playerId} name from "${otherPlayer.playerData.name}" to "${playerName}"`);
                 otherPlayer.playerData.name = playerName;
-                
+
                 // Update the name text display
                 if (otherPlayer.nameText) {
                     otherPlayer.nameText.setText(playerName);
@@ -201,6 +179,10 @@ export class PlayerManager {
 
     getLocalPlayer() {
         return this.localPlayer;
+    }
+
+    isLocalPlayerSpectator() {
+        return this.localPlayer && this.localPlayer.isSpectator;
     }
 
     getOtherPlayers() {
