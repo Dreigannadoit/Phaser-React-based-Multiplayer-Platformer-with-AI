@@ -6,7 +6,6 @@ export default defineConfig({
   server: {
     port: 3000,
   },
-  // Ensure assets are served correctly
   build: {
     assetsDir: 'assets',
   },

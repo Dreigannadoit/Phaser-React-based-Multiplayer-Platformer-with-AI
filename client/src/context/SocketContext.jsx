@@ -17,7 +17,12 @@ export const SocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const newSocket = io('http://localhost:3001');
+    // const newSocket = io('http://localhost:3001');
+
+    const newSocket = io('https://braden-overthin-unpicturesquely.ngrok-free.dev', {
+      transports: ['websocket', 'polling']
+    });
+
     setSocket(newSocket);
 
     newSocket.on('connect', () => {

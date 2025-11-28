@@ -9,10 +9,16 @@ const server = http.createServer(app);
 // Configure CORS
 const io = socketIo(server, {
     cors: {
-        origin: ["http://localhost:5173", "http://localhost:3000"],
+        origin: [
+            "http://localhost:5173", 
+            "http://localhost:3000",
+            "https://braden-overthin-unpicturesquely.ngrok-free.dev"
+        ],
         methods: ["GET", "POST"],
         credentials: true
-    }
+    },
+    
+    transports: ['websocket', 'polling']
 });
 
 // CLEAR all rooms when server starts
