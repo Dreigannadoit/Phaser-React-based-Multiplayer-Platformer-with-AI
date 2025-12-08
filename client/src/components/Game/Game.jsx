@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom' // ADD useNavigate
 import Phaser from 'phaser'
 import PlatformerScene from './PlatformerScene'
 import QuizPopup from '../Quiz/QuizPopup'
@@ -9,41 +9,84 @@ import { useSocket } from '../../context/SocketContext'
 import Scoreboard from './Scoreboard'
 import RespawnCountdown from './RespawnCountdown'
 import SpectatorPanel from './SpectatorPanel'
-import ExitGame from './ExitGame' // ADD THIS IMPORT
+import ExitGame from './ExitGame'
 
 const Game = () => {
     const { roomId } = useParams()
+    const navigate = useNavigate() 
     const gameRef = useRef(null)
     const [quizData, setQuizData] = useState(null)
     const [multiplayerManager, setMultiplayerManager] = useState(null)
-    const [showSpectatorPanel, setShowSpectatorPanel] = useState(false);
-    const [playerData, setPlayerData] = useState({});
+    const [showSpectatorPanel, setShowSpectatorPanel] = useState(false)
+    const [playerData, setPlayerData] = useState({})
     const { socket } = useSocket()
+    
+    const [timeLeft, setTimeLeft] = useState(180) 
+    const [gameEnded, setGameEnded] = useState(false)
 
     // Get player data including isSpectator
     useEffect(() => {
-        const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
-        setPlayerData(storedData);
+        const storedData = JSON.parse(localStorage.getItem('playerData') || '{}')
+        setPlayerData(storedData)
 
-        // SIMPLE CHECK: Only show panel for host spectators
-        const shouldShowPanel = storedData.isHost && storedData.isSpectator;
-        setShowSpectatorPanel(shouldShowPanel);
+        const shouldShowPanel = storedData.isHost && storedData.isSpectator
+        setShowSpectatorPanel(shouldShowPanel)
 
-        console.log(`🎯 Game loaded - Host: ${storedData.isHost}, Spectator: ${storedData.isSpectator}, Show Panel: ${shouldShowPanel}`);
-    }, [roomId, socket]);
+        console.log(`🎯 Game loaded - Host: ${storedData.isHost}, Spectator: ${storedData.isSpectator}, Show Panel: ${shouldShowPanel}`)
+    }, [roomId, socket])
+
+    // ADD: Game timer effect
+    useEffect(() => {
+        if (gameEnded) return
+
+        const timer = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer)
+                    setGameEnded(true)
+                    
+                    // Emit game end to server
+                    if (socket) {
+                        socket.emit('game-ended', { roomId })
+                    }
+                    
+                    // Redirect to scoreboard page
+                    navigate(`/scoreboard/${roomId}`)
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+
+        return () => clearInterval(timer)
+    }, [gameEnded, roomId, socket, navigate])
+
+    // ADD: Listen for game end from server
+    useEffect(() => {
+        if (!socket) return
+
+        const handleGameEnded = () => {
+            setGameEnded(true)
+            navigate(`/scoreboard/${roomId}`)
+        }
+
+        socket.on('game-ended', handleGameEnded)
+
+        return () => {
+            socket.off('game-ended', handleGameEnded)
+        }
+    }, [socket, roomId, navigate])
 
     useEffect(() => {
-        const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
-        setPlayerData(storedData);
+        const storedData = JSON.parse(localStorage.getItem('playerData') || '{}')
+        setPlayerData(storedData)
 
-        // CRITICAL FIX: Only host spectators get the panel
-        // Check both isHost AND isSpectator
         if (storedData.isHost && storedData.isSpectator) {
-            setShowSpectatorPanel(true);
-            console.log('🎯 Host is in spectator mode - showing spectator panel');
+            setShowSpectatorPanel(true)
+            console.log('🎯 Host is in spectator mode - showing spectator panel')
         } else {
-            setShowSpectatorPanel(false);
-            console.log('🎯 Regular player or host playing - hiding spectator panel');
+            setShowSpectatorPanel(false)
+            console.log('🎯 Regular player or host playing - hiding spectator panel')
         }
 
         const config = {
@@ -71,69 +114,45 @@ const Game = () => {
             }
         }
 
-        const game = new Phaser.Game(config);
+        const game = new Phaser.Game(config)
 
         const handleShowQuiz = (event) => {
-            setQuizData(event.detail);
+            setQuizData(event.detail)
         }
 
-        window.addEventListener('showQuiz', handleShowQuiz);
+        window.addEventListener('showQuiz', handleShowQuiz)
 
         // Initialize multiplayer manager AFTER game is created
-        const manager = new MultiplayerManager(roomId || storedData.roomId, socket);
-        setMultiplayerManager(manager);
-        window.multiplayerManager = manager;
+        const manager = new MultiplayerManager(roomId || storedData.roomId, socket)
+        setMultiplayerManager(manager)
+        window.multiplayerManager = manager
 
         // Initialize the manager if socket is available
         if (socket) {
-            manager.setSocket(socket);
+            manager.setSocket(socket)
         }
 
         return () => {
-            window.removeEventListener('showQuiz', handleShowQuiz);
-            game.destroy(true);
+            window.removeEventListener('showQuiz', handleShowQuiz)
+            game.destroy(true)
             if (multiplayerManager) {
-                multiplayerManager.cleanup();
+                multiplayerManager.cleanup()
             }
-        };
-    }, [roomId, socket]);
+        }
+    }, [roomId, socket])
 
-    useEffect(() => {
-        // Load questions and pass to quiz manager
-        const loadQuestions = () => {
-            try {
-                // Get roomId from params or stored data
-                const currentRoomId = roomId || JSON.parse(localStorage.getItem('playerData') || '{}').roomId;
-
-                if (currentRoomId) {
-                    // Try room-specific questions first
-                    const roomQuestionsKey = `gameQuestions_${currentRoomId}`;
-                    const storedQuestions = localStorage.getItem(roomQuestionsKey) || localStorage.getItem('gameQuestions');
-
-                    if (storedQuestions && window.quizManager) {
-                        const questions = JSON.parse(storedQuestions);
-                        window.quizManager.updateQuestions(questions);
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading questions into game:', error);
-            }
-        };
-
-        // Wait for game to be ready
-        setTimeout(loadQuestions, 1000);
-    }, [roomId]);
-
+    // Rest of your existing useEffect for loading questions...
+    
     const handleQuizAnswer = (isCorrect) => {
         if (window.quizManager) {
-            window.quizManager.handleQuizAnswer(isCorrect);
+            window.quizManager.handleQuizAnswer(isCorrect)
         }
 
         if (multiplayerManager) {
-            multiplayerManager.sendQuizResult(isCorrect);
+            multiplayerManager.sendQuizResult(isCorrect)
         }
 
-        setQuizData(null);
+        setQuizData(null)
     }
 
     const gameWrapperStyle = {
@@ -158,17 +177,41 @@ const Game = () => {
     }
 
     // Check if player is a spectator
-    const isSpectator = playerData.isHost && playerData.isSpectator;
+    const isSpectator = playerData.isHost && playerData.isSpectator
+
+    // ADD: Format time display
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    }
 
     return (
         <div className="game-wrapper" style={gameWrapperStyle}>
-            {/* ADD EXIT GAME COMPONENT */}
             <ExitGame />
+            
+            <div style={{
+                position: 'fixed',
+                top: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1000,
+                background: 'rgba(0, 0, 0, 0.8)',
+                border: '3px solid #333',
+                borderRadius: '8px',
+                padding: '10px 20px',
+                color: timeLeft <= 30 ? '#ff4444' : '#ffffff',
+                fontSize: '24px',
+                fontFamily: 'VT323, monospace',
+                fontWeight: 'bold',
+                textShadow: '2px 2px 0 #000',
+                boxShadow: '0 4px 8px rgba(0, 0, 0, 0.5)'
+            }}>
+                Time: {formatTime(timeLeft)}
+            </div>
 
-            {/* Player Stats Component - Show for ALL players (non-spectators) */}
             {!isSpectator && <PlayerStats />}
 
-            {/* Spectator Toggle Button - ONLY for host spectators */}
             {isSpectator && (
                 <button
                     className="spectator-toggle-btn"
@@ -188,19 +231,16 @@ const Game = () => {
                         boxShadow: '3px 3px 0 var(--pixel-dark)'
                     }}
                 >
-                    {showSpectatorPanel ? '👁️ Hide Panel' : '👁️ Show Panel'}
+                    {showSpectatorPanel ? 'Hide Panel' : 'Show Panel'}
                 </button>
             )}
 
-            {/* Spectator Panel - ONLY for host spectators */}
             <SpectatorPanel
                 isVisible={showSpectatorPanel && isSpectator}
                 onToggle={() => setShowSpectatorPanel(false)}
             />
 
-            {/* Scoreboard Component - Show for everyone */}
             <Scoreboard />
-
             <RespawnCountdown />
 
             <div

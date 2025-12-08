@@ -22,7 +22,7 @@ const PDFUpload = () => {
     const [editingQuestion, setEditingQuestion] = useState(null);
     const [newQuestion, setNewQuestion] = useState({ question: '', options: ['', '', '', ''], correct: 0 });
     const [questionCount, setQuestionCount] = useState(10); // Default to 10 questions
-    
+
     const fileInputRef = useRef(null);
     const dropAreaRef = useRef(null);
 
@@ -171,30 +171,33 @@ const PDFUpload = () => {
 
             console.log('Sending text to AI for question generation...');
 
-            const response = await axios.post('http://localhost:11434/api/generate', {
+            
+            const apiUrl = import.meta.env.VITE_MULTI_PLYR_SERVER_API;
+
+            const response = await axios.post(`${apiUrl}/api/ollama/generate`, {
                 model: 'qwen3:8b',
                 prompt: `Create exactly ${questionCount} multiple-choice questions based on the text below.
 
                 
-TEXT:
-"${limitedText}"
+                TEXT:
+                "${limitedText}"
 
-INSTRUCTIONS:
-- Create exactly ${questionCount} questions
-- Questions should test comprehension of the main ideas
-- Make options distinct and meaningful
-- Ensure correct answers are factually accurate
+                INSTRUCTIONS:
+                - Create exactly ${questionCount} questions
+                - Questions should test comprehension of the main ideas
+                - Make options distinct and meaningful
+                - Ensure correct answers are factually accurate
 
-FORMAT REQUIREMENTS - MUST BE VALID JSON:
-[
-  {
-    "question": "Clear question here?",
-    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-    "correct": 0
-  }
-]
+                FORMAT REQUIREMENTS - MUST BE VALID JSON:
+                [
+                {
+                    "question": "Clear question here?",
+                    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+                    "correct": 0
+                }
+                ]
 
-Return ONLY the JSON array, no other text`,
+                Return ONLY the JSON array, no other text`,
                 stream: false
             }, {
                 headers: {
@@ -227,10 +230,10 @@ Return ONLY the JSON array, no other text`,
             if (Array.isArray(questions) && questions.length > 0) {
                 // Limit to the requested number of questions
                 const limitedQuestions = questions.slice(0, questionCount);
-                
+
                 const validatedQuestions = limitedQuestions.map((q, index) => {
                     const questionText = typeof q.question === 'string' ? q.question : `Question ${index + 1}`;
-                    
+
                     let options = ['Option A', 'Option B', 'Option C', 'Option D'];
                     if (Array.isArray(q.options) && q.options.length === 4) {
                         options = q.options.map(opt =>
@@ -249,7 +252,7 @@ Return ONLY the JSON array, no other text`,
 
                 console.log(`Generated ${validatedQuestions.length} validated questions`);
                 setGeneratedQuestions(validatedQuestions);
-                
+
                 if (validatedQuestions.length < questionCount) {
                     setUploadError(`Generated ${validatedQuestions.length} questions (requested ${questionCount}). Some questions were filtered out for quality.`);
                 }
@@ -369,7 +372,7 @@ Return ONLY the JSON array, no other text`,
                 correct: 1
             }
         ];
-        
+
         // Return the requested number of questions, up to the available base questions
         return baseQuestions.slice(0, Math.min(questionCount, baseQuestions.length));
     };
@@ -602,13 +605,13 @@ Return ONLY the JSON array, no other text`,
                                 <div className="question-header">
                                     <h4>Question {index + 1}</h4>
                                     <div className="question-actions">
-                                        <button 
+                                        <button
                                             onClick={() => editQuestion(question, index)}
                                             className="edit-button pixel-button small"
                                         >
                                             ✏️ Edit
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => deleteQuestion(index)}
                                             className="delete-button pixel-button small"
                                         >
@@ -649,13 +652,13 @@ Return ONLY the JSON array, no other text`,
                 <div className="modal-overlay">
                     <div className="question-editor-modal pixel-card">
                         <h3>{editingQuestion !== null ? 'Edit Question' : 'Add New Question'}</h3>
-                        
+
                         <div className="editor-form">
                             <div className="form-group">
                                 <label>Question Text:</label>
                                 <textarea
                                     value={newQuestion.question}
-                                    onChange={(e) => setNewQuestion({...newQuestion, question: e.target.value})}
+                                    onChange={(e) => setNewQuestion({ ...newQuestion, question: e.target.value })}
                                     placeholder="Enter your question here..."
                                     rows="3"
                                     className="question-input"
@@ -679,7 +682,7 @@ Return ONLY the JSON array, no other text`,
                                                 type="radio"
                                                 name="correctOption"
                                                 checked={newQuestion.correct === index}
-                                                onChange={() => setNewQuestion({...newQuestion, correct: index})}
+                                                onChange={() => setNewQuestion({ ...newQuestion, correct: index })}
                                             />
                                             Correct
                                         </label>

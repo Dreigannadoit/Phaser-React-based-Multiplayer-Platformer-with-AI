@@ -2,6 +2,9 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
+const axios = require('axios');
+
+require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
@@ -10,26 +13,25 @@ const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
         origin: [
-            "http://localhost:5173", 
+            "http://localhost:5173",
             "http://localhost:3000",
-            "https://braden-overthin-unpicturesquely.ngrok-free.dev"
+            process.env.CLIENT_API_CALL
         ],
         methods: ["GET", "POST"],
-        credentials: true
+        credentials: false
     },
-    
+
     transports: ['websocket', 'polling']
 });
 
-// CLEAR all rooms when server starts
 const rooms = new Map();
 console.log('🧹 Server started - cleared all previous rooms');
 
 app.use(cors());
 app.use(express.json());
 
-// Room-specific scoreboard update function
-// In server.js - Fix the updateRoomScoreboard function
+
+
 function updateRoomScoreboard(roomId) {
     const room = rooms.get(roomId);
     if (!room) return;
@@ -39,7 +41,6 @@ function updateRoomScoreboard(roomId) {
     console.log(`- Players in room:`, room.players.map(p => ({ id: p.id, name: p.name, coins: p.coins })));
     console.log(`- Scoreboard entries:`, Array.from(room.scoreboard.entries()).map(([id, data]) => ({ id, name: data.name, coins: data.coins })));
 
-    // Get all players from scoreboard, sort by coins (descending)
     const playersArray = Array.from(room.scoreboard.values())
         .filter(player => player && player.name) // Filter out invalid entries
         .sort((a, b) => b.coins - a.coins)
@@ -118,7 +119,7 @@ io.on('connection', (socket) => {
         }
 
         const room = rooms.get(roomId);
-        
+
         console.log(`📊 Room ${roomId} currently has ${room.players.length} players`);
 
         // Check if this socket is already in the room (reconnection case)
@@ -398,9 +399,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Start game
-    // In server.js - Fix the start-game handler
-    // In server.js - Update the start-game handler to ensure spectator status is preserved
     socket.on('start-game', (data) => {
         const roomId = typeof data === 'string' ? data : data.roomId;
         const hostIsSpectator = typeof data === 'object' ? data.hostIsSpectator : false;
@@ -463,8 +461,6 @@ io.on('connection', (socket) => {
         });
     }, 2000); // Sync every 2 seconds for large rooms
 
-    // Quiz results
-    // In server.js - Fix the quiz-result handler
     socket.on('quiz-result', (data) => {
         const room = rooms.get(data.roomId);
         if (room) {
@@ -509,7 +505,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // In server.js - Fix the request-scoreboard handler
     socket.on('request-scoreboard', () => {
         console.log(`📊 Scoreboard requested by ${socket.id}`);
 
@@ -585,6 +580,77 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('game-ended', (data) => {
+        const room = rooms.get(data.roomId)
+        if (room) {
+            console.log(`⏰ Game ended in room ${data.roomId}`)
+
+            // Stop the game and notify all players
+            room.gameEnded = true
+            room.gameEndTime = new Date()
+
+            // Broadcast to all players in the room
+            io.to(data.roomId).emit('game-ended')
+
+            // Store final scores for the scoreboard
+            room.finalScores = Array.from(room.scoreboard.values())
+                .sort((a, b) => b.coins - a.coins)
+                .map((player, index) => ({
+                    ...player,
+                    rank: index + 1
+                }))
+
+            console.log(`📊 Final scores for room ${data.roomId}:`, room.finalScores)
+        }
+    })
+
+    socket.on('reset-game', (data) => {
+        const room = rooms.get(data.roomId)
+        if (room) {
+            console.log(`🔄 Resetting game in room ${data.roomId}`)
+
+            // Reset game state
+            room.gameEnded = false
+            room.gameEndTime = null
+            room.finalScores = null
+
+            // Reset player coins but keep names
+            room.players.forEach(player => {
+                player.coins = 0
+                player.position = { x: 100, y: 200 }
+                player.velocity = { x: 0, y: 0 }
+                player.animation = 'idle'
+            })
+
+            // Reset scoreboard
+            room.scoreboard.forEach(score => {
+                score.coins = 0
+            })
+
+            // Update scoreboard
+            updateRoomScoreboard(data.roomId)
+
+            console.log(`✅ Game reset for room ${data.roomId}`)
+        }
+    })
+
+    app.get('/api/room/:roomId/final-scores', (req, res) => {
+        const room = rooms.get(req.params.roomId)
+        if (room && room.finalScores) {
+            res.json({
+                success: true,
+                scores: room.finalScores,
+                gameEnded: room.gameEnded,
+                endTime: room.gameEndTime
+            })
+        } else {
+            res.json({
+                success: false,
+                message: 'Game not ended or room not found'
+            })
+        }
+    })
+
     // Leave room
     socket.on('leave-game', (roomId) => {
         leaveRoom(socket, roomId);
@@ -646,6 +712,39 @@ io.on('connection', (socket) => {
     }
 });
 
+
+app.post('/api/ollama/generate', async (req, res) => {
+    try {
+        console.log('📤 Forwarding request to Ollama...');
+        const response = await axios.post('http://localhost:11434/api/generate', req.body, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            timeout: 60000
+        });
+        res.json(response.data);
+    } catch (error) {
+        console.error('Ollama proxy error:', error.message);
+        res.status(500).json({ error: 'Failed to connect to Ollama' });
+    }
+});
+
+app.post('/api/ollama/*', async (req, res) => {
+    try {
+        const path = req.params[0];
+        const response = await axios.post(`http://localhost:11434/api/${path}`, req.body, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            timeout: 60000
+        });
+        res.json(response.data);
+    } catch (error) {
+        console.error('Ollama proxy error:', error.message);
+        res.status(500).json({ error: 'Failed to connect to Ollama' });
+    }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({
@@ -690,6 +789,6 @@ function generateCoinsFromMap() {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-    console.log(`🚀 Multiplayer server running on port ${PORT}`);
-    console.log(`📍 Health check: http://localhost:${PORT}/health`);
+    console.log(`Multiplayer server running on port ${PORT}`);
+    console.log(`Health check: http://localhost:${PORT}/health`);
 });

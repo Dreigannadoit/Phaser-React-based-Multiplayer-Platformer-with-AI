@@ -1,4 +1,3 @@
-// src/context/SocketContext.jsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import io from 'socket.io-client';
 
@@ -19,7 +18,7 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     // const newSocket = io('http://localhost:3001');
 
-    const newSocket = io('https://braden-overthin-unpicturesquely.ngrok-free.dev', {
+    const newSocket = io(import.meta.env.VITE_MULTI_PLYR_SERVER_API, {
       transports: ['websocket', 'polling']
     });
 
