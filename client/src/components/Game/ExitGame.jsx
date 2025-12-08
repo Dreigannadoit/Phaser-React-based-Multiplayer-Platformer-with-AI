@@ -40,7 +40,7 @@ const ExitGame = () => {
         }
 
         // Navigate to home
-        navigate('/');
+        navigate('/home');
     };
 
     const handleConfirmExit = () => {

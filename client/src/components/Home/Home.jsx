@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSocket } from '../../context/SocketContext'
+import RouteMusic from '../MusicPlayer/RouteMusic'
 
 const Home = () => {
     const [playerName, setPlayerName] = useState('')
@@ -15,11 +16,12 @@ const Home = () => {
     const navigate = useNavigate()
     const { socket } = useSocket()
 
+
     useEffect(() => {
         // Clear game-related localStorage when returning to home
         const clearStaleGameData = () => {
             const currentPath = window.location.pathname;
-            if (currentPath === '/' || currentPath === '/home') {
+            if (currentPath === '/home') {
                 console.log('🧹 Clearing stale game data on home navigation');
                 localStorage.removeItem('playerData');
                 localStorage.removeItem('gameState');
@@ -207,6 +209,8 @@ const Home = () => {
 
     return (
         <div className="home-container">
+            
+            <RouteMusic musicType="lobby" />
             <div className="home-content">
                 {/* Header Section */}
                 <div className="hero-section">

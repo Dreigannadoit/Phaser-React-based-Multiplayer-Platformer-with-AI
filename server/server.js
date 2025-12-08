@@ -747,14 +747,13 @@ io.on('connection', (socket) => {
                             rooms.delete(roomId)
                             console.log(`Room ${roomId} deleted (empty)`)
                         }
-                    }, 5000) // Wait 5 seconds before deleting empty room
+                    }, 5000)
                 }
             }
         }
         socket.leave(roomId)
     }
 });
-
 
 app.post('/api/ollama/generate', async (req, res) => {
     try {
@@ -763,7 +762,7 @@ app.post('/api/ollama/generate', async (req, res) => {
             headers: {
                 'Content-Type': 'application/json'
             },
-            timeout: 60000
+            timeout: 100000
         });
         res.json(response.data);
     } catch (error) {
@@ -779,7 +778,7 @@ app.post('/api/ollama/*', async (req, res) => {
             headers: {
                 'Content-Type': 'application/json'
             },
-            timeout: 60000
+            timeout: 100000
         });
         res.json(response.data);
     } catch (error) {

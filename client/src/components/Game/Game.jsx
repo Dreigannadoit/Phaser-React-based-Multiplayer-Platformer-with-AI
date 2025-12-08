@@ -10,6 +10,7 @@ import Scoreboard from './Scoreboard'
 import RespawnCountdown from './RespawnCountdown'
 import SpectatorPanel from './SpectatorPanel'
 import ExitGame from './ExitGame'
+import RouteMusic from '../MusicPlayer/RouteMusic'
 
 const Game = () => {
     const { roomId } = useParams()
@@ -267,6 +268,8 @@ const Game = () => {
 
     return (
         <div className="game-wrapper" style={gameWrapperStyle}>
+            
+            <RouteMusic musicType="game" />
             <ExitGame />
 
             <div style={{

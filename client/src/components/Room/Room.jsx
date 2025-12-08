@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useSocket } from '../../context/SocketContext'
+import RouteMusic from '../MusicPlayer/RouteMusic'
 
 const Room = () => {
     const { roomId } = useParams()
@@ -221,32 +222,32 @@ const Room = () => {
             // Listen for question updates from server
             socket.on('questions-updated', (data) => {
                 console.log(`🔄 Questions updated from server: ${data.count} questions`);
-                
+
                 if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
                     // Save to localStorage
                     const roomQuestionsKey = `gameQuestions_${roomId}`;
                     localStorage.setItem(roomQuestionsKey, JSON.stringify(data.questions));
-                    
+
                     // Update state
                     setGameQuestions(data.questions);
                     setHasEnoughQuestions(data.questions.length >= 5);
-                    
+
                     console.log(`💾 Saved ${data.questions.length} questions from server to localStorage`);
                 }
             });
 
             socket.on('questions-received', (data) => {
                 console.log(`📥 Received ${data.count} questions from server`);
-                
+
                 if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
                     // Save to localStorage
                     const roomQuestionsKey = `gameQuestions_${roomId}`;
                     localStorage.setItem(roomQuestionsKey, JSON.stringify(data.questions));
-                    
+
                     // Update state
                     setGameQuestions(data.questions);
                     setHasEnoughQuestions(data.questions.length >= 5);
-                    
+
                     console.log(`💾 Saved ${data.questions.length} questions to localStorage`);
                 }
             });
@@ -351,7 +352,7 @@ const Room = () => {
         if (socket) {
             socket.emit('leave-game', roomId)
         }
-        navigate('/')
+        navigate('/home')
     }
 
     if (error) {
@@ -361,7 +362,7 @@ const Room = () => {
                     <div className="error-message">
                         <h2>Error</h2>
                         <p>{error}</p>
-                        <button onClick={() => navigate('/')} className="back-button">
+                        <button onClick={() => navigate('/home')} className="back-button">
                             Return to Home
                         </button>
                     </div>
@@ -374,6 +375,9 @@ const Room = () => {
 
     return (
         <div className="room-container">
+            
+            <RouteMusic musicType="room" />
+            
             <div className="room-content">
                 <div className="room-header">
                     <div>

@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import axios from 'axios';
 import { useSocket } from '../../context/SocketContext';
+import RouteMusic from '../MusicPlayer/RouteMusic';
 
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -31,6 +32,7 @@ const PDFUpload = () => {
 
     // Get playerName from location state
     const playerName = location.state?.playerName;
+
 
     const onDocumentLoadSuccess = ({ numPages }) => {
         setNumPages(numPages);
@@ -178,39 +180,44 @@ const PDFUpload = () => {
 
             const response = await axios.post(`${apiUrl}/api/ollama/generate`, {
                 model: 'qwen3:8b',
-                prompt: `Create exactly ${questionCount} multiple-choice questions based on the text below.
+                prompt: `You are an expert educational assessment specialist. Your task is to generate high-quality, comprehensive multiple-choice questions (MCQs) strictly based on the provided text, ensuring the questions are highly relevant to the core themes.
 
-            TEXT:
-            "${limitedText}"
+                Create exactly ${questionCount} multiple-choice questions based on the text below.
 
-            INSTRUCTIONS:
-            - Create exactly ${questionCount} questions
-            - Questions should test comprehension of the main ideas
-            - Make options distinct and meaningful
-            - Ensure correct answers are factually accurate
+                TEXT:
+                "${limitedText}"
 
-            CRITICAL FORMAT REQUIREMENTS:
-            1. Return ONLY valid JSON array, no other text
-            2. Ensure property names have exactly ONE set of double quotes
-            3. Do NOT include any markdown formatting
-            4. Escape any quotes inside strings properly
+                INSTRUCTIONS:
+                - Create exactly ${questionCount} questions.
+                - **Focus questions on the most critical concepts, definitions, names, or key relationships discussed in the TEXT.**
+                - Questions must test **higher-order comprehension**, not just surface-level facts (e.g., test why, how, or the significance, not just what).
+                - **All options (including the correct one) must be directly related to the TEXT and factually plausible in the book's context.**
+                - **Distractors (incorrect options) must be highly plausible, derived from the TEXT (e.g., a real term but misapplied, or a correct detail from another context).**
+                - The correct option must be **unambiguously** the best answer.
+                - Questions should be clear, concise, and stand alone.
 
-            VALID JSON FORMAT EXAMPLE:
-            [
-            {
-                "question": "Clear question here?",
-                "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-                "correct": 0
-            }
-            ]
+                CRITICAL FORMAT REQUIREMENTS:
+                1. Return ONLY valid JSON array, no other text.
+                2. Ensure property names have exactly ONE set of double quotes.
+                3. Do NOT include any markdown formatting (e.g., \`\`\`json).
+                4. Escape any quotes inside strings properly (e.g., 'a\\'s book').
 
-            Return ONLY the JSON array.`,
+                VALID JSON FORMAT EXAMPLE (Use a 0-based index for 'correct'):
+                [
+                {
+                "question": "Which of the following best describes the core function of the 'Flux Capacitor' as detailed in the text?",
+                "options": ["To stabilize quantum entanglement.", "To facilitate time travel.", "To convert kinetic energy.", "To track cosmic radiation."],
+                "correct": 1
+                }
+                ]
+
+                Return ONLY the JSON array.`,
                 stream: false
             }, {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                timeout: 60000
+                timeout: 100000
             });
 
             console.log('AI response received');
@@ -626,6 +633,9 @@ const PDFUpload = () => {
 
     return (
         <div className="pdf-upload-container">
+            
+            <RouteMusic musicType="room" />
+
             <div className="pdf-upload-header">
                 <button onClick={goToRoom} className="back-button pixel-button">
                     ← Back to Room {roomId}

@@ -66,7 +66,7 @@ export default class PlatformerScene extends Phaser.Scene {
 
     extractRoomIdFromURL() {
         if (typeof window !== 'undefined') {
-            const pathParts = window.location.pathname.split('/');
+            const pathParts = window.location.pathname.split('/home');
             const roomIndex = pathParts.indexOf('room') + 1;
             if (roomIndex > 0 && roomIndex < pathParts.length) {
                 return pathParts[roomIndex];

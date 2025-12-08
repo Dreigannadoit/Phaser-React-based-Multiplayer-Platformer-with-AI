@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useSocket } from '../../context/SocketContext'
+import RouteMusic from '../MusicPlayer/RouteMusic'
 
 const ScoreboardPage = () => {
     const { roomId } = useParams()
@@ -63,7 +64,7 @@ const ScoreboardPage = () => {
 
     const getMedalColor = (rank) => {
         switch (rank) {
-            case 1: return '#FFD700' 
+            case 1: return '#FFD700'
             case 2: return '#C0C0C0'
             case 3: return '#CD7F32'
             default: return 'transparent'
@@ -90,6 +91,7 @@ const ScoreboardPage = () => {
 
     return (
         <div className="scoreboard-page">
+            <RouteMusic musicType="lobby" />
             <div className="scoreboard-container">
                 <div className="scoreboard-header">
                     <h1>Game Over</h1>
