@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from '../../context/SocketContext';
-import './Scoreboard.css';
+import '../../Scoreboard.css';
 
 const Scoreboard = () => {
     const [isVisible, setIsVisible] = useState(false);
