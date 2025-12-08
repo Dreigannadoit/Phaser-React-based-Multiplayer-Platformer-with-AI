@@ -2,11 +2,14 @@ import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import axios from 'axios';
+import { useSocket } from '../../context/SocketContext';
 
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 const PDFUpload = () => {
+    const { socket } = useSocket();
+
     const navigate = useNavigate();
     const location = useLocation();
     const { roomId } = useParams();
@@ -171,33 +174,37 @@ const PDFUpload = () => {
 
             console.log('Sending text to AI for question generation...');
 
-            
             const apiUrl = import.meta.env.VITE_MULTI_PLYR_SERVER_API;
 
             const response = await axios.post(`${apiUrl}/api/ollama/generate`, {
                 model: 'qwen3:8b',
                 prompt: `Create exactly ${questionCount} multiple-choice questions based on the text below.
 
-                
-                TEXT:
-                "${limitedText}"
+            TEXT:
+            "${limitedText}"
 
-                INSTRUCTIONS:
-                - Create exactly ${questionCount} questions
-                - Questions should test comprehension of the main ideas
-                - Make options distinct and meaningful
-                - Ensure correct answers are factually accurate
+            INSTRUCTIONS:
+            - Create exactly ${questionCount} questions
+            - Questions should test comprehension of the main ideas
+            - Make options distinct and meaningful
+            - Ensure correct answers are factually accurate
 
-                FORMAT REQUIREMENTS - MUST BE VALID JSON:
-                [
-                {
-                    "question": "Clear question here?",
-                    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-                    "correct": 0
-                }
-                ]
+            CRITICAL FORMAT REQUIREMENTS:
+            1. Return ONLY valid JSON array, no other text
+            2. Ensure property names have exactly ONE set of double quotes
+            3. Do NOT include any markdown formatting
+            4. Escape any quotes inside strings properly
 
-                Return ONLY the JSON array, no other text`,
+            VALID JSON FORMAT EXAMPLE:
+            [
+            {
+                "question": "Clear question here?",
+                "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+                "correct": 0
+            }
+            ]
+
+            Return ONLY the JSON array.`,
                 stream: false
             }, {
                 headers: {
@@ -211,50 +218,78 @@ const PDFUpload = () => {
             console.log('Raw AI response:', responseText);
 
             let cleanResponse = responseText.trim();
-            cleanResponse = cleanResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+
+            cleanResponse = cleanResponse.replace(/```json\s*/g, '');
+            cleanResponse = cleanResponse.replace(/```\s*/g, '');
+
+            cleanResponse = cleanResponse.replace(/""(\w+)":/g, '"$1":'); // Fix ""question": -> "question":
+            cleanResponse = cleanResponse.replace(/\"(\s*)\"(\w+)":/g, '"$2":'); // Fix " "question": -> "question":
+            cleanResponse = cleanResponse.replace(/\"\s*\"(\w+)":/g, '"$1":'); // Fix " "question": -> "question":
+
+            cleanResponse = cleanResponse.replace(/\"options":\s*"([^"]*)"/g, (match, options) => {
+                if (!options.startsWith('[')) {
+                    // Split by commas and create array
+                    const optionsArray = options.split(',').map(opt => `"${opt.trim()}"`);
+                    return `"options": [${optionsArray.join(', ')}]`;
+                }
+                return match;
+            });
 
             let questions;
+
             try {
                 questions = JSON.parse(cleanResponse);
             } catch (parseError) {
                 console.log('First parse failed, trying to extract JSON...', parseError);
-                const jsonMatch = cleanResponse.match(/\[[\s\S]*\]/);
+
+                const jsonMatch = cleanResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
                 if (jsonMatch) {
-                    questions = JSON.parse(jsonMatch[0]);
+                    try {
+                        let jsonStr = jsonMatch[0];
+                        jsonStr = jsonStr.replace(/""(\w+)":/g, '"$1":');
+                        jsonStr = jsonStr.replace(/"(\w+)":\s*"(.*?)",?/g, (match, prop, value) => {
+                            return `"${prop}": "${value.replace(/"/g, '\\"')}",`;
+                        });
+                        questions = JSON.parse(jsonStr);
+                    } catch (e) {
+                        console.log('Second parse failed:', e);
+                        // CRITICAL CHANGE: Don't throw error here, let it go to the validation
+                        questions = [];
+                    }
                 } else {
-                    console.log('Could not parse JSON, using fallback questions');
-                    throw new Error('Could not parse questions from AI response');
+                    console.log('Could not parse JSON, checking if fallback needed');
+                    questions = [];
                 }
             }
 
+            // CRITICAL: Only use fallback if NO valid questions were parsed
             if (Array.isArray(questions) && questions.length > 0) {
-                // Limit to the requested number of questions
-                const limitedQuestions = questions.slice(0, questionCount);
+                const validatedQuestions = validateQuestions(questions);
+                const limitedQuestions = validatedQuestions.slice(0, questionCount);
 
-                const validatedQuestions = limitedQuestions.map((q, index) => {
-                    const questionText = typeof q.question === 'string' ? q.question : `Question ${index + 1}`;
+                // Filter out invalid questions
+                const finalQuestions = limitedQuestions.filter(q =>
+                    q.question && q.question.length > 10 &&
+                    q.options && q.options.length === 4 &&
+                    q.options.every(opt => opt && opt.length > 0)
+                );
 
-                    let options = ['Option A', 'Option B', 'Option C', 'Option D'];
-                    if (Array.isArray(q.options) && q.options.length === 4) {
-                        options = q.options.map(opt =>
-                            typeof opt === 'string' && opt.length > 0 ? opt : `Option ${String.fromCharCode(65 + options.indexOf(opt))}`
-                        );
+                console.log(`Generated ${finalQuestions.length} validated questions`);
+
+                // CRITICAL CHECK: Only save if we have valid questions
+                if (finalQuestions.length >= Math.floor(questionCount / 2)) { // At least 50% of requested
+                    console.log(`✅ Saving ${finalQuestions.length} AI-generated questions`);
+                    setGeneratedQuestions(finalQuestions);
+
+                    if (validatedQuestions.length < questionCount) {
+                        setUploadError(`Generated ${validatedQuestions.length} questions (requested ${questionCount}). Some questions were filtered out for quality.`);
+                    } else {
+                        setUploadError(''); // Clear any previous errors
                     }
-
-                    const correct = typeof q.correct === 'number' && q.correct >= 0 && q.correct <= 3 ? q.correct : 0;
-
-                    return {
-                        question: questionText,
-                        options: options,
-                        correct: correct
-                    };
-                }).filter(q => q.question.length > 10);
-
-                console.log(`Generated ${validatedQuestions.length} validated questions`);
-                setGeneratedQuestions(validatedQuestions);
-
-                if (validatedQuestions.length < questionCount) {
-                    setUploadError(`Generated ${validatedQuestions.length} questions (requested ${questionCount}). Some questions were filtered out for quality.`);
+                } else {
+                    // Not enough valid questions - use fallback instead
+                    console.warn(`❌ Only ${finalQuestions.length} valid questions, using fallback`);
+                    throw new Error('Insufficient valid questions generated');
                 }
             } else {
                 throw new Error('Invalid questions format generated');
@@ -265,7 +300,48 @@ const PDFUpload = () => {
             const fallbackQuestions = generateFallbackQuestions();
             setGeneratedQuestions(fallbackQuestions);
             setUploadError(`AI generation failed. Using ${fallbackQuestions.length} fallback questions. Try adjusting the question count or using a different PDF.`);
+
+            // CRITICAL: Log that we're using fallback
+            console.error('⚠️ USING FALLBACK QUESTIONS:', fallbackQuestions);
         }
+    };
+
+    const validateQuestions = (questions) => {
+        if (!Array.isArray(questions)) {
+            throw new Error('Questions must be an array');
+        }
+
+        return questions.map((q, index) => {
+            // Fix common issues
+            let questionText = q.question || q.questionText || `Question ${index + 1}`;
+
+            // Remove any extra quotes
+            if (typeof questionText === 'string') {
+                questionText = questionText.replace(/^"|"$/g, '').trim();
+            }
+
+            let options = q.options || ['Option A', 'Option B', 'Option C', 'Option D'];
+            if (!Array.isArray(options) || options.length !== 4) {
+                options = ['Option A', 'Option B', 'Option C', 'Option D'];
+            }
+
+            // Clean up each option
+            options = options.map((opt, i) => {
+                if (typeof opt !== 'string') {
+                    return `Option ${String.fromCharCode(65 + i)}`;
+                }
+                return opt.replace(/^"|"$/g, '').trim() || `Option ${String.fromCharCode(65 + i)}`;
+            });
+
+            let correct = parseInt(q.correct) || 0;
+            if (correct < 0 || correct > 3) correct = 0;
+
+            return {
+                question: questionText,
+                options: options,
+                correct: correct
+            };
+        });
     };
 
     const generateFallbackQuestions = () => {
@@ -441,14 +517,80 @@ const PDFUpload = () => {
         }
 
         const roomQuestionsKey = `gameQuestions_${roomId}`;
-        localStorage.setItem(roomQuestionsKey, JSON.stringify(generatedQuestions));
-        localStorage.setItem('gameQuestions', JSON.stringify(generatedQuestions));
 
+        console.log(`💾 Saving questions to localStorage AND server:`);
+        console.log(`  - Room ID: ${roomId}`);
+        console.log(`  - Questions: ${generatedQuestions.length}`);
+        console.log(`  - Storage Key: ${roomQuestionsKey}`);
+        console.log(`  - Sample question: ${generatedQuestions[0]?.question?.substring(0, 50)}...`);
+
+        // 1. Save to localStorage
+        localStorage.setItem(roomQuestionsKey, JSON.stringify(generatedQuestions));
+        localStorage.setItem('currentRoomId', roomId);
+
+        const playerData = JSON.parse(localStorage.getItem('playerData') || '{}');
+        playerData.roomId = roomId;
+        playerData.hasQuestions = true;
+        localStorage.setItem('playerData', JSON.stringify(playerData));
+
+        // 2. Send to server using socket
+        if (socket && socket.connected) {
+            console.log(`📤 Sending ${generatedQuestions.length} questions to server...`);
+
+            // Add a small delay to ensure socket is ready
+            setTimeout(() => {
+                socket.emit('save-questions', {
+                    roomId: roomId,
+                    questions: generatedQuestions,
+                    timestamp: Date.now(),
+                    hostName: playerName
+                });
+
+                console.log(`✅ Questions emitted to server for room ${roomId}`);
+
+                // Listen for confirmation
+                const confirmationTimeout = setTimeout(() => {
+                    console.log('⚠️ No server confirmation received, proceeding anyway...');
+                }, 2000);
+
+                socket.once('questions-updated', (data) => {
+                    clearTimeout(confirmationTimeout);
+                    console.log(`✅ Server confirmed questions saved for room ${data.roomId}: ${data.count} questions`);
+                });
+            }, 100);
+        } else {
+            console.warn('⚠️ Socket not connected, questions saved locally only');
+            // Fallback: store in localStorage with flag to sync later
+            const pendingSync = JSON.parse(localStorage.getItem('pendingQuestionSync') || '[]');
+            pendingSync.push({
+                roomId: roomId,
+                questions: generatedQuestions,
+                timestamp: Date.now()
+            });
+            localStorage.setItem('pendingQuestionSync', JSON.stringify(pendingSync));
+            console.log('📝 Questions queued for sync when socket reconnects');
+        }
+
+        // Verify local save
+        setTimeout(() => {
+            const saved = JSON.parse(localStorage.getItem(roomQuestionsKey));
+            console.log(`✅ Verification: ${saved ? saved.length : 0} questions saved locally`);
+
+            if (saved && saved.length === generatedQuestions.length) {
+                console.log('✅ Questions saved successfully!');
+            } else {
+                console.error('❌ Questions may not have saved correctly!');
+            }
+        }, 100);
+
+        // Navigate back to room
         const currentPlayerName = playerName || 'Host';
         navigate(`/room/${roomId}?playerName=${encodeURIComponent(currentPlayerName)}&isHost=true`, {
             state: {
                 questionsGenerated: true,
-                questionCount: generatedQuestions.length
+                questionCount: generatedQuestions.length,
+                roomId: roomId,
+                fromPDFUpload: true
             }
         });
     };

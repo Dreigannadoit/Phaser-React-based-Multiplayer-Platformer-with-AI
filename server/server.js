@@ -25,6 +25,7 @@ const io = socketIo(server, {
 });
 
 const rooms = new Map();
+const roomQuestions = new Map();
 console.log('🧹 Server started - cleared all previous rooms');
 
 app.use(cors());
@@ -461,6 +462,49 @@ io.on('connection', (socket) => {
         });
     }, 2000); // Sync every 2 seconds for large rooms
 
+    socket.on('save-questions', (data) => {
+        const { roomId, questions } = data;
+        console.log(`📚 Host saving ${questions.length} questions for room ${roomId}`);
+
+        // Store questions server-side
+        roomQuestions.set(roomId, questions);
+
+        // Broadcast to all players in the room
+        io.to(roomId).emit('questions-updated', {
+            roomId: roomId,
+            questions: questions,
+            count: questions.length
+        });
+
+        console.log(`✅ Questions saved and broadcast to room ${roomId}`);
+    });
+
+    socket.on('request-questions', (data) => {
+        const { roomId } = data;
+        console.log(`📚 Player requesting questions for room ${roomId}`);
+
+        const questions = roomQuestions.get(roomId) || [];
+        socket.emit('questions-received', {
+            roomId: roomId,
+            questions: questions,
+            count: questions.length
+        });
+
+        console.log(`✅ Sent ${questions.length} questions to player`);
+    });
+
+    socket.on('quiz-answer', (data) => {
+        const { roomId, playerId, questionIndex, isCorrect } = data;
+        console.log(`🎯 Quiz answer from player ${playerId} in room ${roomId}: ${isCorrect ? 'Correct' : 'Wrong'}`);
+
+        // You can track quiz stats here if needed
+        socket.to(roomId).emit('quiz-result-broadcast', {
+            playerId: playerId,
+            questionIndex: questionIndex,
+            isCorrect: isCorrect
+        });
+    });
+
     socket.on('quiz-result', (data) => {
         const room = rooms.get(data.roomId);
         if (room) {
@@ -547,7 +591,6 @@ io.on('connection', (socket) => {
             }
         }
     });
-
 
     socket.on('player-died', (data) => {
         const room = rooms.get(data.roomId);

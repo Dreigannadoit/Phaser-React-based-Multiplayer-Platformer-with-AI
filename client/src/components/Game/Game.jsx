@@ -13,15 +13,15 @@ import ExitGame from './ExitGame'
 
 const Game = () => {
     const { roomId } = useParams()
-    const navigate = useNavigate() 
+    const navigate = useNavigate()
     const gameRef = useRef(null)
     const [quizData, setQuizData] = useState(null)
     const [multiplayerManager, setMultiplayerManager] = useState(null)
     const [showSpectatorPanel, setShowSpectatorPanel] = useState(false)
     const [playerData, setPlayerData] = useState({})
     const { socket } = useSocket()
-    
-    const [timeLeft, setTimeLeft] = useState(180) 
+
+    const [timeLeft, setTimeLeft] = useState(180)
     const [gameEnded, setGameEnded] = useState(false)
 
     // Get player data including isSpectator
@@ -33,60 +33,91 @@ const Game = () => {
         setShowSpectatorPanel(shouldShowPanel)
 
         console.log(`🎯 Game loaded - Host: ${storedData.isHost}, Spectator: ${storedData.isSpectator}, Show Panel: ${shouldShowPanel}`)
+
+        if (roomId) {
+            const roomQuestionsKey = `gameQuestions_${roomId}`;
+            const questions = JSON.parse(localStorage.getItem(roomQuestionsKey) || '[]');
+            console.log(`📚 DEBUG: ${questions.length} questions available for room ${roomId}`);
+            // setDebugQuestions(questions);
+        }
     }, [roomId, socket])
 
-    // ADD: Game timer effect
-    useEffect(() => {
-        if (gameEnded) return
 
-        const timer = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(timer)
-                    setGameEnded(true)
-                    
-                    // Emit game end to server
-                    if (socket) {
-                        socket.emit('game-ended', { roomId })
+    useEffect(() => {
+        const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
+        setPlayerData(storedData);
+
+        // Set roomId globally for Phaser scene to access
+        if (roomId) {
+            window.currentRoomId = roomId;
+            localStorage.setItem('currentRoomId', roomId);
+
+            // Also update playerData with roomId
+            storedData.roomId = roomId;
+            localStorage.setItem('playerData', JSON.stringify(storedData));
+
+            console.log(`🎮 Game starting for room: ${roomId}`);
+
+            // Debug: Check what questions are available
+            const roomQuestionsKey = `gameQuestions_${roomId}`;
+            const localQuestions = JSON.parse(localStorage.getItem(roomQuestionsKey) || '[]');
+            console.log(`📚 Local questions available for room ${roomId}: ${localQuestions.length}`);
+
+            if (localQuestions.length > 0) {
+                console.log('📝 First local question:', localQuestions[0]?.question?.substring(0, 100));
+            } else {
+                console.log('📭 No local questions found, will request from server');
+            }
+        }
+
+        if (socket && roomId) {
+            console.log(`📤 Requesting questions from server for room ${roomId}...`);
+            socket.emit('request-questions', { roomId: roomId });
+
+            socket.on('questions-received', (data) => {
+                console.log(`📥 Received ${data.questions.length} questions from server for room ${data.roomId}`);
+
+                if (data.questions.length > 0) {
+                    console.log('📝 First server question:', data.questions[0]?.question?.substring(0, 100));
+
+                    // Save to localStorage for this player
+                    const roomQuestionsKey = `gameQuestions_${roomId}`;
+                    localStorage.setItem(roomQuestionsKey, JSON.stringify(data.questions));
+                    console.log(`💾 Saved ${data.questions.length} questions to player's localStorage`);
+
+                    // Force reload if QuizManager already exists
+                    if (window.quizManager) {
+                        window.quizManager.questions = data.questions;
+                        console.log(`🔄 Updated QuizManager with ${data.questions.length} server questions`);
                     }
-                    
-                    // Redirect to scoreboard page
-                    navigate(`/scoreboard/${roomId}`)
-                    return 0
+                } else {
+                    console.warn(`⚠️ Server returned 0 questions for room ${roomId}`);
                 }
-                return prev - 1
-            })
-        }, 1000)
+            });
 
-        return () => clearInterval(timer)
-    }, [gameEnded, roomId, socket, navigate])
+            // Listen for updates from host
+            socket.on('questions-updated', (data) => {
+                console.log(`🔄 Host updated questions: ${data.count} questions for room ${data.roomId}`);
 
-    // ADD: Listen for game end from server
-    useEffect(() => {
-        if (!socket) return
+                const roomQuestionsKey = `gameQuestions_${roomId}`;
+                localStorage.setItem(roomQuestionsKey, JSON.stringify(data.questions));
+                console.log(`💾 Updated player's localStorage with ${data.questions.length} questions`);
 
-        const handleGameEnded = () => {
-            setGameEnded(true)
-            navigate(`/scoreboard/${roomId}`)
+                // Update QuizManager if it exists
+                if (window.quizManager) {
+                    window.quizManager.questions = data.questions;
+                    console.log(`🔄 Updated QuizManager with new questions from host`);
+                }
+            });
         }
 
-        socket.on('game-ended', handleGameEnded)
-
-        return () => {
-            socket.off('game-ended', handleGameEnded)
-        }
-    }, [socket, roomId, navigate])
-
-    useEffect(() => {
-        const storedData = JSON.parse(localStorage.getItem('playerData') || '{}')
-        setPlayerData(storedData)
 
         if (storedData.isHost && storedData.isSpectator) {
-            setShowSpectatorPanel(true)
-            console.log('🎯 Host is in spectator mode - showing spectator panel')
+            setShowSpectatorPanel(true);
+            console.log('🎯 Host is in spectator mode - showing spectator panel');
         } else {
-            setShowSpectatorPanel(false)
-            console.log('🎯 Regular player or host playing - hiding spectator panel')
+            setShowSpectatorPanel(false);
+            console.log('🎯 Regular player or host playing - hiding spectator panel');
         }
 
         const config = {
@@ -112,37 +143,88 @@ const Game = () => {
                 width: '100%',
                 height: '100%'
             }
-        }
+        };
 
-        const game = new Phaser.Game(config)
+        const game = new Phaser.Game(config);
 
         const handleShowQuiz = (event) => {
-            setQuizData(event.detail)
-        }
+            setQuizData(event.detail);
 
-        window.addEventListener('showQuiz', handleShowQuiz)
+            // Debug: Check what question is being shown
+            console.log('🎯 Showing quiz question:', event.detail?.question?.substring(0, 50));
+        };
+
+        window.addEventListener('showQuiz', handleShowQuiz);
 
         // Initialize multiplayer manager AFTER game is created
-        const manager = new MultiplayerManager(roomId || storedData.roomId, socket)
-        setMultiplayerManager(manager)
-        window.multiplayerManager = manager
+        const manager = new MultiplayerManager(roomId || storedData.roomId, socket);
+        setMultiplayerManager(manager);
+        window.multiplayerManager = manager;
 
         // Initialize the manager if socket is available
         if (socket) {
-            manager.setSocket(socket)
+            manager.setSocket(socket);
         }
 
         return () => {
-            window.removeEventListener('showQuiz', handleShowQuiz)
-            game.destroy(true)
-            if (multiplayerManager) {
-                multiplayerManager.cleanup()
+            if (socket) {
+                socket.off('questions-received');
+                socket.off('questions-updated');
             }
-        }
-    }, [roomId, socket])
+            window.removeEventListener('showQuiz', handleShowQuiz);
+            game.destroy(true);
+            if (multiplayerManager) {
+                multiplayerManager.cleanup();
+            }
 
-    // Rest of your existing useEffect for loading questions...
-    
+            // Clean up global references
+            delete window.currentRoomId;
+            delete window.quizManager;
+            delete window.gameScene;
+        };
+    }, [roomId, socket]);
+
+    useEffect(() => {
+        if (gameEnded) return
+
+        const timer = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer)
+                    setGameEnded(true)
+
+                    // Emit game end to server
+                    if (socket) {
+                        socket.emit('game-ended', { roomId })
+                    }
+
+                    // Redirect to scoreboard page
+                    navigate(`/scoreboard/${roomId}`)
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+
+        return () => clearInterval(timer)
+    }, [gameEnded, roomId, socket, navigate])
+
+    useEffect(() => {
+        if (!socket) return
+
+        const handleGameEnded = () => {
+            setGameEnded(true)
+            navigate(`/scoreboard/${roomId}`)
+        }
+
+        socket.on('game-ended', handleGameEnded)
+
+        return () => {
+            socket.off('game-ended', handleGameEnded)
+        }
+    }, [socket, roomId, navigate])
+
+
     const handleQuizAnswer = (isCorrect) => {
         if (window.quizManager) {
             window.quizManager.handleQuizAnswer(isCorrect)
@@ -175,11 +257,8 @@ const Game = () => {
         boxShadow: '0 0 20px rgba(0, 0, 0, 0.5)',
         overflow: 'hidden'
     }
-
-    // Check if player is a spectator
     const isSpectator = playerData.isHost && playerData.isSpectator
 
-    // ADD: Format time display
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60)
         const secs = seconds % 60
@@ -189,7 +268,7 @@ const Game = () => {
     return (
         <div className="game-wrapper" style={gameWrapperStyle}>
             <ExitGame />
-            
+
             <div style={{
                 position: 'fixed',
                 top: '20px',

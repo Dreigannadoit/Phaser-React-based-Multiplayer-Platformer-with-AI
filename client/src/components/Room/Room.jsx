@@ -12,30 +12,56 @@ const Room = () => {
     const [error, setError] = useState('')
     const [isSpectator, setIsSpectator] = useState(false);
 
-    const { socket } = useSocket();
+    const { socket, isConnected } = useSocket()
     const [gameQuestions, setGameQuestions] = useState([]);
     const [hasEnoughQuestions, setHasEnoughQuestions] = useState(false);
+    const [serverQuestions, setServerQuestions] = useState([]);
 
     useEffect(() => {
-        const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
-        if (storedData.roomId) {
-            console.log('🧹 Found previous session data, clearing...');
-            localStorage.removeItem('playerData');
-            localStorage.removeItem('gameState');
-            localStorage.removeItem('playerProgress');
-        }
+        // const storedData = JSON.parse(localStorage.getItem('playerData') || '{}');
+        // if (storedData.roomId) {
+        //     console.log('🧹 Found previous session data, clearing...');
+        //     localStorage.removeItem('playerData');
+        //     localStorage.removeItem('gameState');
+        //     localStorage.removeItem('playerProgress');
+        // }
 
+
+        localStorage.removeItem('gameState');
+        localStorage.removeItem('playerProgress');
+
+
+        if (socket && isConnected) {
+            const pendingSync = JSON.parse(localStorage.getItem('pendingQuestionSync') || '[]');
+            const roomPending = pendingSync.find(p => p.roomId === roomId);
+
+            if (roomPending) {
+                console.log(`🔄 Found pending questions to sync for room ${roomId}`);
+                socket.emit('save-questions', {
+                    roomId: roomId,
+                    questions: roomPending.questions,
+                    timestamp: roomPending.timestamp
+                });
+
+                // Remove from pending
+                const newPending = pendingSync.filter(p => p.roomId !== roomId);
+                localStorage.setItem('pendingQuestionSync', JSON.stringify(newPending));
+            }
+        }
 
         // Load questions from localStorage on component mount
         const loadQuestions = () => {
             try {
                 const roomQuestionsKey = `gameQuestions_${roomId}`;
-                const storedQuestions = localStorage.getItem(roomQuestionsKey) || localStorage.getItem('gameQuestions');
+                const storedQuestions = localStorage.getItem(roomQuestionsKey);
 
                 if (storedQuestions) {
                     const questions = JSON.parse(storedQuestions);
                     setGameQuestions(questions);
                     setHasEnoughQuestions(questions.length >= 5);
+                    console.log(`📚 Loaded ${questions.length} questions for room ${roomId} from localStorage`);
+                } else {
+                    console.log(`📭 No questions found in localStorage for room ${roomId}`);
                 }
             } catch (error) {
                 console.error('Error loading questions:', error);
@@ -77,10 +103,10 @@ const Room = () => {
         if (storedPlayerData.roomId === roomId) {
             // HOSTS: Use stored spectator preference
             // REGULAR PLAYERS: Always false (they can't be spectators)
-            const shouldBeSpectator = host ? 
-                (storedPlayerData.isSpectator !== undefined ? storedPlayerData.isSpectator : true) : 
+            const shouldBeSpectator = host ?
+                (storedPlayerData.isSpectator !== undefined ? storedPlayerData.isSpectator : true) :
                 false;
-            
+
             setIsSpectator(shouldBeSpectator);
             console.log('🎯 Loaded spectator preference from storage:', shouldBeSpectator, 'isHost:', host);
         } else {
@@ -97,7 +123,7 @@ const Room = () => {
             roomId,
             playerName: decodedName,
             isHost: host,
-            isSpectator: finalSpectatorStatus  
+            isSpectator: finalSpectatorStatus
         })
 
         // Join room immediately with player info using shared socket
@@ -105,7 +131,7 @@ const Room = () => {
             roomId,
             playerName: decodedName,
             isHost: host,
-            isSpectator: finalSpectatorStatus  
+            isSpectator: finalSpectatorStatus
         })
 
         // Listen for player assignment
@@ -191,9 +217,51 @@ const Room = () => {
             setError('Failed to connect to server')
         })
 
+        if (socket) {
+            // Listen for question updates from server
+            socket.on('questions-updated', (data) => {
+                console.log(`🔄 Questions updated from server: ${data.count} questions`);
+                
+                if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+                    // Save to localStorage
+                    const roomQuestionsKey = `gameQuestions_${roomId}`;
+                    localStorage.setItem(roomQuestionsKey, JSON.stringify(data.questions));
+                    
+                    // Update state
+                    setGameQuestions(data.questions);
+                    setHasEnoughQuestions(data.questions.length >= 5);
+                    
+                    console.log(`💾 Saved ${data.questions.length} questions from server to localStorage`);
+                }
+            });
+
+            socket.on('questions-received', (data) => {
+                console.log(`📥 Received ${data.count} questions from server`);
+                
+                if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+                    // Save to localStorage
+                    const roomQuestionsKey = `gameQuestions_${roomId}`;
+                    localStorage.setItem(roomQuestionsKey, JSON.stringify(data.questions));
+                    
+                    // Update state
+                    setGameQuestions(data.questions);
+                    setHasEnoughQuestions(data.questions.length >= 5);
+                    
+                    console.log(`💾 Saved ${data.questions.length} questions to localStorage`);
+                }
+            });
+
+            // Request questions from server on mount (for players)
+            console.log(`📤 Requesting questions from server for room ${roomId}...`);
+            socket.emit('request-questions', { roomId: roomId });
+        }
+
+
         return () => {
             // Clean up event listeners but don't disconnect the socket
             if (socket) {
+                socket.off('questions-updated');
+                socket.off('questions-received');
                 socket.off('player-assigned')
                 socket.off('players-updated')
                 socket.off('game-state')
@@ -335,11 +403,12 @@ const Room = () => {
                     </div>
                 </div>
 
-                {/* Questions Section - Only for Host */}
                 {isHost && (
                     <div className="questions-section">
                         <div className="questions-header">
                             <h2>Game Questions</h2>
+                            // Add to the questions-actions section in Room.jsx
+
                             <div className="questions-actions">
                                 <button
                                     onClick={navigateToPDFUpload}
@@ -348,21 +417,47 @@ const Room = () => {
                                     📄 Generate Questions from PDF
                                 </button>
                                 {gameQuestions.length > 0 && (
-                                    <div className="questions-status">
-                                        <span className="questions-count">
-                                            ✅ {gameQuestions.length} questions ready
-                                        </span>
-                                        <button onClick={clearQuestions} className="clear-questions-button">
-                                            🗑️ Clear
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                if (socket) {
+                                                    socket.emit('save-questions', {
+                                                        roomId: roomId,
+                                                        questions: gameQuestions
+                                                    });
+                                                    alert(`Synced ${gameQuestions.length} questions with players`);
+                                                }
+                                            }}
+                                            className="sync-button"
+                                            style={{ background: 'blue', color: 'white' }}
+                                        >
+                                            🔄 Sync with Players
                                         </button>
-                                    </div>
+                                        <div className="questions-status">
+                                            <span className="questions-count">
+                                                ✅ {gameQuestions.length} questions ready
+                                            </span>
+                                            <button onClick={clearQuestions} className="clear-questions-button">
+                                                🗑️ Clear
+                                            </button>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         </div>
 
+                        {/* Show server sync status */}
+                        <div className="sync-status">
+                            {serverQuestions.length > 0 && gameQuestions.length > 0 ? (
+                                <span style={{ color: 'green' }}>✅ Questions synced with players</span>
+                            ) : serverQuestions.length === 0 && gameQuestions.length > 0 ? (
+                                <span style={{ color: 'orange' }}>⚠️ Questions not yet synced with players</span>
+                            ) : null}
+                        </div>
+
                         {gameQuestions.length > 0 ? (
                             <div className="questions-preview">
-                                <h4>Sample Questions:</h4>
+                                <h4>Sample Questions (Players will see these):</h4>
                                 {gameQuestions.slice(0, 3).map((q, index) => (
                                     <div key={index} className="question-preview">
                                         <strong>Q{index + 1}:</strong> {q.question}
@@ -387,7 +482,7 @@ const Room = () => {
                         ) : (
                             <div className="no-questions">
                                 <p>No questions added yet. Click "Generate Questions from PDF" to create questions from PDF files.</p>
-                                <p><small>You need at least 5 questions to start the game.</small></p>
+                                <p><small>Players will automatically receive questions when they join.</small></p>
                             </div>
                         )}
                     </div>

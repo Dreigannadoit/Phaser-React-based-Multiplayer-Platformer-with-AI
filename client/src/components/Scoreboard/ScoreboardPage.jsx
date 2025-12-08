@@ -20,7 +20,7 @@ const ScoreboardPage = () => {
             try {
                 const response = await fetch(`http://localhost:3001/api/room/${roomId}/final-scores`)
                 const data = await response.json()
-                
+
                 if (data.success) {
                     setFinalScores(data.scores)
                 } else {
@@ -62,16 +62,16 @@ const ScoreboardPage = () => {
     }
 
     const getMedalColor = (rank) => {
-        switch(rank) {
-            case 1: return '#FFD700' // Gold
-            case 2: return '#C0C0C0' // Silver
-            case 3: return '#CD7F32' // Bronze
+        switch (rank) {
+            case 1: return '#FFD700' 
+            case 2: return '#C0C0C0'
+            case 3: return '#CD7F32'
             default: return 'transparent'
         }
     }
 
     const getRankText = (rank) => {
-        switch(rank) {
+        switch (rank) {
             case 1: return '1st'
             case 2: return '2nd'
             case 3: return '3rd'
@@ -101,10 +101,10 @@ const ScoreboardPage = () => {
 
                 <div className="podium-container">
                     {finalScores.slice(0, 3).map((player, index) => (
-                        <div 
-                            key={player.id} 
+                        <div
+                            key={player.id}
                             className={`podium-place podium-${index + 1}`}
-                            style={{ borderColor: getMedalColor(index + 1) }}
+                            style={{ border: getMedalColor(index + 1) }}
                         >
                             <div className="podium-rank">{index + 1}</div>
                             <div className="podium-name">{player.name}</div>
@@ -117,15 +117,15 @@ const ScoreboardPage = () => {
                     <h2>Final Rankings</h2>
                     <div className="scoreboard-list">
                         {finalScores.map((player, index) => (
-                            <div 
-                                key={player.id} 
+                            <div
+                                key={player.id}
                                 className={`scoreboard-item ${player.name === playerName ? 'current-player' : ''}`}
                             >
                                 <div className="rank-column">
                                     <span className="rank-number">{getRankText(index + 1)}</span>
                                     {index < 3 && (
-                                        <div 
-                                            className="medal-circle" 
+                                        <div
+                                            className="medal-circle"
                                             style={{ backgroundColor: getMedalColor(index + 1) }}
                                         />
                                     )}

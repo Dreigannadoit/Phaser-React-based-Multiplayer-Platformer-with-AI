@@ -45,9 +45,8 @@ const Scoreboard = () => {
 
     return (
         <>
-            {/* Toggle Button - Always visible */}
             <button 
-                className={`scoreboard-toggle ${isHovered ? 'hovered' : ''}`}
+                className={`in-game scoreboard-toggle ${isHovered ? 'hovered' : ''}`}
                 onClick={toggleVisibility}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
@@ -56,9 +55,8 @@ const Scoreboard = () => {
                 <img src="/assets/sprites/crown.png" alt="Scoreboard" />
             </button>
             
-            {/* Scoreboard Content */}
             {isVisible && (
-                <div className="scoreboard-container">
+                <div className="scoreboard-container in-game">
                     {/* Spiral Binding */}
                     <div className="scoreboard-spiral"></div>
                     

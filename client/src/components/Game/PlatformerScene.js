@@ -52,12 +52,27 @@ export default class PlatformerScene extends Phaser.Scene {
         this.createTextures();
         this.loadParallaxBackgrounds();
 
-        // Initialize managers
+        // Get roomId from window global
+        const roomId = window.currentRoomId || this.extractRoomIdFromURL();
+        console.log(`🎮 PlatformerScene - roomId: ${roomId}`);
+
+        // Initialize managers with roomId
         this.mapManager = new MapManager(this);
-        this.quizManager = new QuizManager(this);
+        this.quizManager = new QuizManager(this, roomId); // PASS roomId HERE
 
         this.mapManager.preload();
         this.quizManager.preload();
+    }
+
+    extractRoomIdFromURL() {
+        if (typeof window !== 'undefined') {
+            const pathParts = window.location.pathname.split('/');
+            const roomIndex = pathParts.indexOf('room') + 1;
+            if (roomIndex > 0 && roomIndex < pathParts.length) {
+                return pathParts[roomIndex];
+            }
+        }
+        return 'default';
     }
 
     loadParallaxBackgrounds() {

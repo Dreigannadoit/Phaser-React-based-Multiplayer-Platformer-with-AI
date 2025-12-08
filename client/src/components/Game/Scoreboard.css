@@ -1,4 +1,4 @@
-.scoreboard-container {
+.in-game.scoreboard-container {
     position: fixed;
     top: 20px;
     right: 20px;
@@ -21,7 +21,7 @@
     transition: all 0.3s ease;
 }
 
-.scoreboard-spiral {
+.in-game .scoreboard-spiral {
     position: absolute;
     left: 15px;
     top: 50%;
@@ -37,7 +37,7 @@
     pointer-events: none;
 }
 
-.scoreboard-toggle {
+.in-game.scoreboard-toggle {
     position: fixed;
     top: 20px;
     right: 20px;
@@ -58,18 +58,18 @@
     justify-content: center;
 }
 
-.scoreboard-toggle:hover {
+.in-game.scoreboard-toggle:hover {
     transform: translate(2px, 2px);
     box-shadow: 2px 2px 0 var(--pixel-dark);
 }
 
-.scoreboard-toggle img {
+.in-game.scoreboard-toggle img {
     width: 24px;
     height: 24px;
     filter: drop-shadow(1px 1px 0 var(--pixel-dark));
 }
 
-.scoreboard-header {
+.in-game .scoreboard-header {
     text-align: center;
     font-size: 1.4rem;
     font-weight: bold;
@@ -81,19 +81,19 @@
 }
 
 
-.scoreboard-header img {
+.in-game .scoreboard-header img {
     width: 24px;
     height: 24px;
     filter: drop-shadow(1px 1px 0 var(--pixel-dark));
 }
 
-.scoreboard-players-list {
+.in-game .scoreboard-players-list {
     max-height: 300px;
     overflow-y: auto;
     padding-right: 5px;
 }
 
-.scoreboard-player-row {
+.in-game .scoreboard-player-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -103,30 +103,30 @@
     transition: all 0.2s ease;
 }
 
-.scoreboard-player-row.rank-1 {
+.in-game .scoreboard-player-row.rank-1 {
     background-color: rgba(255, 215, 0, 0.2);
     border-left: 3px solid gold;
     transform: scale(1.02);
 }
 
-.scoreboard-player-row.rank-2 {
+.in-game .scoreboard-player-row.rank-2 {
     background-color: rgba(192, 192, 192, 0.2);
     border-left: 3px solid silver;
 }
 
-.scoreboard-player-row.rank-3 {
+.in-game .scoreboard-player-row.rank-3 {
     background-color: rgba(205, 127, 50, 0.2);
     border-left: 3px solid #cd7f32;
 }
 
-.scoreboard-rank {
+.in-game .scoreboard-rank {
     font-weight: bold;
     color: var(--pixel-blue);
     min-width: 30px;
     text-shadow: 1px 1px 0 var(--notebook-shadow);
 }
 
-.scoreboard-player-name {
+.in-game .scoreboard-player-name {
     flex: 1;
     margin: 0 10px;
     white-space: nowrap;
@@ -136,7 +136,7 @@
     text-shadow: 1px 1px 0 var(--notebook-shadow);
 }
 
-.scoreboard-coins {
+.in-game .scoreboard-coins {
     font-weight: bold;
     color: #b8860b;
     min-width: 60px;
@@ -144,7 +144,7 @@
     text-shadow: 1px 1px 0 var(--notebook-shadow);
 }
 
-.scoreboard-no-players {
+.in-game .scoreboard-no-players {
     text-align: center;
     color: #888;
     font-style: italic;
@@ -154,20 +154,20 @@
 }
 
 /* Scrollbar styling to match notebook theme */
-.scoreboard-scrollbar::-webkit-scrollbar {
+.in-game .scoreboard-scrollbar::-webkit-scrollbar {
     width: 8px;
 }
 
-.scoreboard-scrollbar::-webkit-scrollbar-track {
+.in-game .scoreboard-scrollbar::-webkit-scrollbar-track {
     background: var(--notebook-yellow);
     border: 1px solid var(--notebook-line);
 }
 
-.scoreboard-scrollbar::-webkit-scrollbar-thumb {
+.in-game .scoreboard-scrollbar::-webkit-scrollbar-thumb {
     background: var(--pixel-border);
     border: 1px solid var(--pixel-dark);
 }
 
-.scoreboard-scrollbar::-webkit-scrollbar-thumb:hover {
+.in-game .scoreboard-scrollbar::-webkit-scrollbar-thumb:hover {
     background: var(--pixel-blue);
 }
